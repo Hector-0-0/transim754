@@ -9,6 +9,9 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 - Andamiaje del repositorio: estructura de paquetes `src/transim/` por capas (L0–L5),
   `pyproject.toml`, `Makefile`, configuración de pre-commit, integración continua
   (ruff, mypy, pytest), licencia MIT y plantillas de GitHub.
+- Documentación de diseño: propuesta del avance, arquitectura, simulador switch-level,
+  IEEE 754 con seis ejemplos verificados contra numpy, ISA T754, métricas, política de IA,
+  glosario, esqueleto de investigación y los 13 ADR.
 
 ## Hitos previstos
 - `v0.0.1-base` — base del repositorio lista para el trabajo en paralelo.
