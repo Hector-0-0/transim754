@@ -1,5 +1,5 @@
-# Un dueño por módulo. Los marcadores @PENDIENTE-<nombre> se reemplazan por los
-# usuarios reales de GitHub en la fase F8. Mientras tanto GitHub los ignora.
+# Un dueño por módulo. El marcador @PENDIENTE-Daniel se reemplaza cuando se tenga su
+# usuario de GitHub (fase F8). Mientras tanto GitHub lo ignora y esa parte la revisa @Hector-0-0.
 
 *                               @Hector-0-0
 
@@ -9,24 +9,30 @@
 /src/transim/ui/cli.py          @Hector-0-0
 /src/transim/reference/         @Hector-0-0
 
-/src/transim/cells/             @PENDIENTE-Jairo
-/tests/cells/                   @PENDIENTE-Jairo
+/src/transim/cells/             @JairoHCh
+/tests/cells/                   @JairoHCh
 
-/src/transim/blocks/            @PENDIENTE-Ronald
-/src/transim/alu/               @PENDIENTE-Ronald
-/tests/blocks/                  @PENDIENTE-Ronald
-/tests/alu/                     @PENDIENTE-Ronald
+/src/transim/blocks/            @devronaldaz
+/src/transim/alu/               @devronaldaz
+/tests/blocks/                  @devronaldaz
+/tests/alu/                     @devronaldaz
 
 /src/transim/fpu/format.py      @PENDIENTE-Daniel
 /src/transim/fpu/codec.py       @PENDIENTE-Daniel
 /src/transim/fpu/special.py     @PENDIENTE-Daniel
 /src/transim/fpu/rounding.py    @PENDIENTE-Daniel
 /src/transim/fpu/add_sub.py     @PENDIENTE-Daniel
+/tests/fpu/test_codec_especiales.py @PENDIENTE-Daniel
+/tests/fpu/test_redondeo.py     @PENDIENTE-Daniel
+/tests/fpu/test_suma_resta.py   @PENDIENTE-Daniel
 
-/src/transim/fpu/mul.py         @PENDIENTE-Fabricio
-/src/transim/fpu/div.py         @PENDIENTE-Fabricio
+/src/transim/fpu/mul.py         @Fabrizzio-07
+/src/transim/fpu/div.py         @Fabrizzio-07
+/tests/fpu/test_multiplicacion.py @Fabrizzio-07
+/tests/fpu/test_division.py     @Fabrizzio-07
 
-/src/transim/ui/gui/            @PENDIENTE-Yenny
-/src/transim/metrics/           @PENDIENTE-Yenny
-/tests/metrics/                 @PENDIENTE-Yenny
-/docs/investigacion/            @PENDIENTE-Yenny
+/src/transim/ui/gui/            @yennyestherchavez
+/src/transim/metrics/           @yennyestherchavez
+/tests/metrics/                 @yennyestherchavez
+/docs/investigacion/            @yennyestherchavez
+/tests/ui/test_gui.py           @yennyestherchavez
