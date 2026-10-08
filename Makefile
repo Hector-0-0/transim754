@@ -41,9 +41,9 @@ format: ## Aplica el formato de ruff
 typecheck: ## mypy (estricto en core/, fpu/ y reference/)
 	$(BIN)/mypy
 
-validar: ## Valida un módulo: make validar M=<modulo>
+validar: ## Valida un módulo: make validar M=<modulo> [COMPLETO=1]
 	@test -n "$(M)" || (echo "Uso: make validar M=<modulo>"; exit 2)
-	$(PYTHON) scripts/validar.py $(M)
+	$(PYTHON) scripts/validar.py $(M) $(if $(COMPLETO),--completo,)
 
 metrics: ## Genera las tablas de métricas (Markdown y CSV)
 	$(BIN)/transim metrics --out docs/metricas

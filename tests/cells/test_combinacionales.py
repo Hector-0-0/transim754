@@ -31,8 +31,17 @@ CELDAS: list[
 ]
 
 
+# Issues aún pendientes en esta tabla. Al terminar uno, quite su número del conjunto.
+PENDIENTES: set[int] = {1, 2, 3, 4}
+
+
 def _parametros(celdas: list) -> list:  # type: ignore[type-arg]
-    return [pytest.param(*fila, id=fila[0].__name__, marks=pendiente(fila[1])) for fila in celdas]
+    return [
+        pytest.param(
+            *fila, id=fila[0].__name__, marks=[pendiente(fila[1])] if fila[1] in PENDIENTES else []
+        )
+        for fila in celdas
+    ]
 
 
 @pytest.mark.switch
