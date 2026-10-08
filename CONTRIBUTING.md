@@ -27,7 +27,9 @@ Requisitos: Python 3.12, `make` y git. En Windows use WSL o Git Bash.
 
 ## Ramas y flujo
 
-- `main` está protegida: solo se integra mediante pull request.
+- `main` está protegida: solo se integra mediante pull request con la integración continua
+  en verde y una aprobación; no se permite push directo ni `--force`, tampoco para
+  administradores.
 - Cada issue se trabaja en una rama `feat/<ámbito>-<descripcion-corta>`, por ejemplo
   `feat/cells-xor2` o `feat/fpu-addsub-normalizacion`. Para errores: `fix/<ámbito>-…`.
 - Mantenga su rama al día: `git fetch origin && git rebase origin/main`.
@@ -78,7 +80,8 @@ Formato (Conventional Commits, en español):
 1. Al cerrar el último punto de commit de un issue, abra un PR hacia `main` con la
    plantilla y `Closes #N`.
 2. La integración continua (ruff, mypy y pruebas rápidas) debe estar en verde.
-3. Se requiere **una aprobación** de otro integrante (asignada por CODEOWNERS).
+3. Se requiere **una aprobación** de otro integrante. CODEOWNERS solicita la revisión
+   automáticamente al dueño del módulo (o a Héctor si el autor es el dueño).
 4. Se integra con **squash merge** y un mensaje convencional con `Closes #N`.
 5. Al cerrar cada hito, el líder técnico crea un tag anotado y un release, y actualiza
    `CHANGELOG.md`.

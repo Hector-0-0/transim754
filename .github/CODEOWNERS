@@ -1,5 +1,5 @@
-# Un dueño por módulo. El marcador @PENDIENTE-Daniel se reemplaza cuando se tenga su
-# usuario de GitHub (fase F8). Mientras tanto GitHub lo ignora y esa parte la revisa @Hector-0-0.
+# Dueños por módulo (ver EQUIPO.md). GitHub solicita automáticamente su revisión en cada
+# PR; para integrar se exige 1 aprobación de otro integrante (protección de main).
 
 *                               @Hector-0-0
 
@@ -17,14 +17,14 @@
 /tests/blocks/                  @devronaldaz
 /tests/alu/                     @devronaldaz
 
-/src/transim/fpu/format.py      @PENDIENTE-Daniel
-/src/transim/fpu/codec.py       @PENDIENTE-Daniel
-/src/transim/fpu/special.py     @PENDIENTE-Daniel
-/src/transim/fpu/rounding.py    @PENDIENTE-Daniel
-/src/transim/fpu/add_sub.py     @PENDIENTE-Daniel
-/tests/fpu/test_codec_especiales.py @PENDIENTE-Daniel
-/tests/fpu/test_redondeo.py     @PENDIENTE-Daniel
-/tests/fpu/test_suma_resta.py   @PENDIENTE-Daniel
+/src/transim/fpu/format.py      @Sergiodam73
+/src/transim/fpu/codec.py       @Sergiodam73
+/src/transim/fpu/special.py     @Sergiodam73
+/src/transim/fpu/rounding.py    @Sergiodam73
+/src/transim/fpu/add_sub.py     @Sergiodam73
+/tests/fpu/test_codec_especiales.py @Sergiodam73
+/tests/fpu/test_redondeo.py     @Sergiodam73
+/tests/fpu/test_suma_resta.py   @Sergiodam73
 
 /src/transim/fpu/mul.py         @Fabrizzio-07
 /src/transim/fpu/div.py         @Fabrizzio-07

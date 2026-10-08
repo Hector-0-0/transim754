@@ -10,7 +10,7 @@ Docente: Carlos Nelson Ramos Montes.
 | Héctor David Flores Sánchez | [@Hector-0-0](https://github.com/Hector-0-0) | Líder técnico e integrador: base, núcleo L0, CPU, ensamblador, CLI, asistente, revisión de PR y releases | [cpu](src/transim/cpu/GUIA.md), [assistant](src/transim/assistant/GUIA.md) | #29–#33 |
 | Jairo Jhosimar Huaman Choque | [@JairoHCh](https://github.com/JairoHCh) | Celdas L1: AND, OR, XOR, XNOR, MUX2, HA, FA espejo, latch, flip-flop, registro | [cells](src/transim/cells/GUIA.md) | #1–#6 |
 | Matthews Ronald Ayala Zubilete | [@devronaldaz](https://github.com/devronaldaz) | Bloques L2 y ALU: RCA, CLA, restador, comparador, multiplexores, barrel shifter, LZC, ALU entera | [blocks](src/transim/blocks/GUIA.md), [alu](src/transim/alu/GUIA.md) | #7–#14 |
-| Daniel | *pendiente* | FPU común y FADD/FSUB: codec, casos especiales, redondeo RNE (dueño de `rounding.py`), suma y resta | [fpu addsub](src/transim/fpu/GUIA_ADDSUB.md) | #15–#17 |
+| Daniel | [@Sergiodam73](https://github.com/Sergiodam73) | FPU común y FADD/FSUB: codec, casos especiales, redondeo RNE (dueño de `rounding.py`), suma y resta | [fpu addsub](src/transim/fpu/GUIA_ADDSUB.md) | #15–#17 |
 | Fabricio | [@Fabrizzio-07](https://github.com/Fabrizzio-07) | FPU FMUL/FDIV: multiplicador en arreglo, divisor no restaurador | [fpu muldiv](src/transim/fpu/GUIA_MULDIV.md) | #18–#21 |
 | Yenny | [@yennyestherchavez](https://github.com/yennyestherchavez) | GUI, métricas, investigación "transistores en las CPU", diapositivas e informe APA | [metrics](src/transim/metrics/GUIA.md), [gui](src/transim/ui/gui/GUIA.md), [investigación](docs/investigacion/transistores_en_cpus.md) | #22–#28 |
 

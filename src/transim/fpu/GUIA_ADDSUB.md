@@ -1,6 +1,6 @@
 # GUIA · FPU común y FADD/FSUB (capa L3)
 
-- **Responsable:** Daniel (usuario de GitHub pendiente)
+- **Responsable:** Daniel (@Sergiodam73)
 - **Issues:** #15, #16, #17 · **Hito:** `v0.1.0-avance` (es la operación de la demo)
 - **Código:** `src/transim/fpu/{codec,special,rounding,add_sub}.py`
 - **Pruebas:** `tests/fpu/test_codec_especiales.py`, `test_redondeo.py`, `test_suma_resta.py`
