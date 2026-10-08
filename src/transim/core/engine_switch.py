@@ -117,6 +117,7 @@ class SwitchEngine:
         self._queue: deque[int] = deque()
         self._pending: set[int] = set()
         self._events = 0
+        self._short_candidates: set[int] = set()
         self._settle(self._initial_seeds(), set())
 
     # ------------------------------------------------------ puntos de extensión
@@ -312,8 +313,14 @@ class SwitchEngine:
         return [t.drain.id if t.source.id == nid else t.source.id for t in self._channel[nid]]
 
     def _apply(self, nid: int, value: Logic, strength: Strength, touched: set[int]) -> None:
-        """Asigna (valor, fuerza) a un nodo interno y propaga si el valor cambió."""
-        self._strengths[nid] = strength
+        """Asigna (valor, fuerza) a un nodo interno y propaga si el valor cambió.
+
+        Un cambio solo de fuerza (por ejemplo, de carga retenida a valor manejado) no se
+        propaga, pero el nodo se marca para que los contadores lo consideren.
+        """
+        if self._strengths[nid] != strength:
+            self._strengths[nid] = strength
+            touched.add(nid)
         if self._values[nid] == value:
             return
         self._values[nid] = value
@@ -340,7 +347,49 @@ class SwitchEngine:
         finally:
             self._queue.clear()
             self._pending.clear()
+        self._report_shorts()
         self._commit_counts(touched)
+
+    def _report_shorts(self) -> None:
+        """Advierte los cortocircuitos que **persisten** en el estado estable.
+
+        Durante una estabilización puede haber solapamientos transitorios (por ejemplo,
+        las dos transmission gates de un MUX conduciendo mientras se actualiza el
+        complemento de la selección); en un modelo de retardo cero son artefactos del
+        orden de eventos y no se reportan.
+        """
+        candidates, self._short_candidates = self._short_candidates, set()
+        reported: set[int] = set()
+        for nid in sorted(candidates):
+            if nid in reported:
+                continue
+            group, sources = self._sure_group(nid)
+            reported.update(group)
+            if not self._shorted(sources):
+                continue
+            names = ", ".join(sorted(self.netlist.nodes[n].name for n in group))
+            self.short_circuits.append(names)
+            warnings.warn(
+                f"{self.netlist.name}: cortocircuito VDD–GND en {{{names}}}",
+                ShortCircuitWarning,
+                stacklevel=4,
+            )
+
+    def _sure_group(self, start: int) -> tuple[set[int], list[int]]:
+        """Nodos unidos a ``start`` por transistores que conducen con certeza, y fuentes."""
+        group, sources, stack = {start}, [], [start]
+        while stack:
+            nid = stack.pop()
+            for t in self._channel[nid]:
+                if self._conduction[t.id] is not Conduction.ON:
+                    continue
+                other = t.drain.id if t.source.id == nid else t.source.id
+                if self._is_source[other]:
+                    sources.append(other)
+                elif other not in group:
+                    group.add(other)
+                    stack.append(other)
+        return group, sources
 
     def _component(self, start: int) -> tuple[list[int], list[Transistor], set[int]]:
         """CCC de ``start``: nodos internos, transistores no cortados y nodos fuente."""
@@ -431,13 +480,7 @@ class SwitchEngine:
                 and resolved.value is Logic.X
                 and self._shorted(attached.get(root, []))
             ):
-                names = ", ".join(sorted(self.netlist.nodes[n].name for n in nodes))
-                self.short_circuits.append(names)
-                warnings.warn(
-                    f"{self.netlist.name}: cortocircuito VDD–GND en {{{names}}}",
-                    ShortCircuitWarning,
-                    stacklevel=5,
-                )
+                self._short_candidates.add(nodes[0])
             for n in nodes:
                 result[n] = (resolved.value, resolved.strength)
         return result

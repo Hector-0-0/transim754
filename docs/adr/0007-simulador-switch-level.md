@@ -42,8 +42,12 @@ valores indeterminados.
    quedan unidos, el resultado es X (no se modelan capacitancias para el reparto de
    carga; simplificación declarada).
 7. **Cortocircuito:** si un nodo queda conectado a la vez a VDD y a GND por caminos que
-   conducen con certeza, vale X y se registra una advertencia `ShortCircuitWarning` con
-   el nombre del nodo.
+   conducen con certeza, vale X. Si la conexión **persiste en el estado estable**, se
+   registra una advertencia `ShortCircuitWarning` con los nombres de los nodos. Los
+   solapamientos transitorios dentro de una estabilización (por ejemplo, las dos
+   transmission gates de un multiplexor conduciendo mientras se actualiza el
+   complemento de la selección) son artefactos del modelo de retardo cero y no se
+   reportan.
 8. **Oscilación:** un límite configurable de iteraciones por cambio de entradas
    (por defecto 10 000 eventos) detecta circuitos que no se estabilizan (por ejemplo,
    un anillo de inversores) y lanza `OscillationError`.

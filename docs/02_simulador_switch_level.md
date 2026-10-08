@@ -91,7 +91,7 @@ alcanzar un estado estable.
 | Situación | Resultado | Ejemplo de prueba |
 |---|---|---|
 | Nodo sin camino a fuentes | retiene su valor con fuerza `CHARGE` | latch dinámico con la transmission gate abierta |
-| Nodo conectado a VDD y GND por transistores que conducen | X y advertencia `ShortCircuitWarning` | dos inversores con salidas unidas y entradas opuestas |
+| Nodo conectado a VDD y GND por transistores que conducen | X; advertencia `ShortCircuitWarning` si persiste en el estado estable | dos inversores con salidas unidas y entradas opuestas |
 | Compuerta en X | conducción desconocida; X solo si cambia el resultado | inversor con entrada X → salida X |
 | Circuito sin estado estable | `OscillationError` | anillo de 3 inversores |
 | Estado inicial | todos los nodos en X con fuerza `CHARGE` | flip-flop sin inicializar |

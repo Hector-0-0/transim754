@@ -289,3 +289,55 @@ def test_mismo_conteo_de_transistores() -> None:
     sw, ca = SwitchEngine(nl), CachedEngine(nl)
     assert sw.netlist.transistor_count() == ca.netlist.transistor_count()
     assert len(sw.transistor_events) == len(ca.transistor_events) == 8 * 9 * 4
+
+
+# ------------------------------------------------- regresiones (validación F4)
+def test_cambio_solo_de_fuerza_actualiza_el_contador() -> None:
+    """Un nodo que pasa de carga retenida a valor manejado sin cambiar de valor debe
+    compararse con su último valor manejado (ADR-0007, punto 9)."""
+    nl = Netlist("tg")
+    d, en, en_n, q = nl.input("d"), nl.input("en"), nl.input("en_n"), nl.output("q")
+    nl.transmission_gate(d, q, en, en_n)
+    sim = SwitchEngine(nl)
+    sim.set_inputs({"d": 1, "en": 1, "en_n": 0})  # q manejado a 1
+    sim.set_inputs({"en": 0, "en_n": 1})  # q aislado
+    valores = sim.values()
+    valores[q.id] = Logic.ZERO  # carga distinta del último valor manejado
+    sim.load_state(valores)
+    sim.set_inputs({"d": 0})
+    sim.set_inputs({"en": 1, "en_n": 0})  # q manejado a 0: mismo valor, otra fuerza
+    assert sim.node_toggles[q.id] == 1
+
+
+def test_solapamiento_transitorio_no_es_cortocircuito() -> None:
+    """Al cambiar la selección, las dos TG conducen un instante (retardo cero): no se
+    reporta; solo se reportan cortocircuitos que persisten en el estado estable."""
+    import warnings
+
+    nl = Netlist("selector")
+    a, b, s, m = nl.input("a"), nl.input("b"), nl.input("s"), nl.output("m")
+    s_n = nl.instantiate(inv(), "is", {"a": s})["y"]
+    a_n = nl.instantiate(inv(), "ia", {"a": a})["y"]
+    b_n = nl.instantiate(inv(), "ib", {"a": b})["y"]
+    nl.transmission_gate(a_n, m, s_n, s)
+    nl.transmission_gate(b_n, m, s, s_n)
+    for motor in (SwitchEngine(nl), CachedEngine(nl)):
+        motor.set_inputs({"a": 0, "b": 1, "s": 0})
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            for k in range(10):
+                motor.set_inputs({"s": k % 2})
+                assert motor.read("m") is Logic(1 - k % 2)
+        assert motor.short_circuits == []
+
+
+@settings(max_examples=40, deadline=None)
+@given(circuito_aleatorio(), st.randoms(use_true_random=False))
+def test_equivalencia_aleatoria_con_entradas_x(
+    caso: tuple[Netlist, list[dict[str, int]]], rng: random.Random
+) -> None:
+    nl, pasos = caso
+    con_x: list[Mapping[str, InputValue]] = [
+        {k: (rng.choice([0, 1, "X"])) for k in p} for p in pasos * 3
+    ]
+    assert_equivalentes(nl, con_x)
