@@ -13,6 +13,11 @@ Algoritmo, por cada cambio de entradas:
    compuerta es ese nodo, y los extremos de esos transistores se encolan.
 5. Se repite hasta que la cola queda vacía (estado estable) o se supera el límite de
    eventos (``OscillationError``).
+
+Los contadores de actividad se actualizan al final de cada estabilización comparando
+estados estables (ver :meth:`SwitchEngine._commit_counts`): los valores intermedios de
+un modelo de retardo cero dependen del orden de los eventos y no representan tiempos
+físicos, por lo que no se cuentan.
 """
 
 from __future__ import annotations
@@ -44,7 +49,14 @@ class ShortCircuitWarning(UserWarning):
 
 @dataclass(frozen=True, slots=True)
 class SimStats:
-    """Contadores acumulados desde el último :meth:`SwitchEngine.reset_counters`."""
+    """Contadores acumulados desde el último ``reset_counters``.
+
+    Attributes:
+        node_toggles: conmutaciones de nodos entre estados estables.
+        transistor_events: cambios de conducción de transistores entre estados estables.
+        evaluations: unidades evaluadas (CCC o celdas tabuladas). Depende del motor y
+            del orden de eventos; no forma parte de la equivalencia entre motores.
+    """
 
     node_toggles: int
     transistor_events: int
@@ -69,13 +81,6 @@ class SwitchEngine:
         self._values: list[Logic] = [Logic.X] * n_nodes
         self._strengths: list[Strength] = [Strength.CHARGE] * n_nodes
         self._is_source: list[bool] = [node.is_source for node in netlist.nodes]
-        self._channel: list[list[Transistor]] = [[] for _ in range(n_nodes)]
-        self._gated: list[list[Transistor]] = [[] for _ in range(n_nodes)]
-        for t in netlist.transistors:
-            self._channel[t.source.id].append(t)
-            if t.drain is not t.source:
-                self._channel[t.drain.id].append(t)
-            self._gated[t.gate.id].append(t)
         for node in netlist.nodes:
             if node.kind is NodeKind.VDD:
                 self._values[node.id], self._strengths[node.id] = Logic.ONE, Strength.SUPPLY
@@ -83,20 +88,70 @@ class SwitchEngine:
                 self._values[node.id], self._strengths[node.id] = Logic.ZERO, Strength.SUPPLY
             elif node.kind is NodeKind.INPUT:
                 self._strengths[node.id] = Strength.DRIVEN
+
+        # Adyacencias. `_channel` y `_gated` solo incluyen los transistores que este
+        # motor evalúa por CCC; `_gated_all` incluye todos (para contar eventos).
+        self._channel: list[list[Transistor]] = [[] for _ in range(n_nodes)]
+        self._gated: list[list[Transistor]] = [[] for _ in range(n_nodes)]
+        self._gated_all: list[list[Transistor]] = [[] for _ in range(n_nodes)]
+        for t in netlist.transistors:
+            self._gated_all[t.gate.id].append(t)
+        for t in self._switch_region():
+            self._channel[t.source.id].append(t)
+            if t.drain is not t.source:
+                self._channel[t.drain.id].append(t)
+            self._gated[t.gate.id].append(t)
         self._conduction: list[Conduction] = [
             conduction_for(t.kind, self._values[t.gate.id]) for t in netlist.transistors
         ]
-        # Último valor definido (0/1) de cada nodo y último estado definido (ON/OFF) de
-        # cada transistor: base para contar conmutaciones aunque se pase por X.
-        self._last_known: list[Logic | None] = [v if v.is_known else None for v in self._values]
-        self._last_conduction: list[Conduction | None] = [
-            c if c is not Conduction.UNKNOWN else None for c in self._conduction
-        ]
+
+        # Último valor manejado (0/1 con fuerza ≥ DRIVEN) de cada nodo y último estado
+        # definido (ON/OFF) de cada transistor: base de los contadores de actividad.
+        self._last_driven: list[Logic | None] = [v if v.is_known else None for v in self._values]
+        self._last_conduction: list[Conduction | None] = [None] * len(netlist.transistors)
         self.node_toggles: list[int] = [0] * n_nodes
         self.transistor_events: list[int] = [0] * len(netlist.transistors)
         self.evaluations = 0
         self.short_circuits: list[str] = []
-        self._settle([n.id for n in netlist.nodes if not n.is_source])
+
+        self._queue: deque[int] = deque()
+        self._pending: set[int] = set()
+        self._events = 0
+        self._settle(self._initial_seeds(), set())
+
+    # ------------------------------------------------------ puntos de extensión
+    def _switch_region(self) -> list[Transistor]:
+        """Transistores que este motor evalúa por CCC (todos, en el motor exacto)."""
+        return self.netlist.transistors
+
+    def _initial_seeds(self) -> list[int]:
+        """Nodos a evaluar en la estabilización inicial."""
+        return [n.id for n in self.netlist.nodes if not n.is_source]
+
+    def _work_pending(self) -> bool:
+        return bool(self._queue)
+
+    def _step(self, touched: set[int]) -> None:
+        """Procesa una unidad de trabajo pendiente (aquí, un CCC)."""
+        nid = self._queue.popleft()
+        if nid not in self._pending:
+            return
+        members, edges, boundary = self._component(nid)
+        self._pending.difference_update(members)
+        self.evaluations += 1
+        for m, (value, strength) in self._evaluate(members, edges, boundary).items():
+            self._apply(m, value, strength, touched)
+
+    def _node_changed(self, nid: int) -> None:
+        """Reacciona al cambio de valor de ``nid``: actualiza los transistores con
+        compuerta en ese nodo y encola los extremos de los que cambiaron."""
+        gate_value = self._values[nid]
+        for t in self._gated[nid]:
+            new = conduction_for(t.kind, gate_value)
+            if new is not self._conduction[t.id]:
+                self._conduction[t.id] = new
+                self._enqueue(t.source.id)
+                self._enqueue(t.drain.id)
 
     # ------------------------------------------------------------- entradas
     def set_inputs(self, values: Mapping[str, InputValue]) -> None:
@@ -109,20 +164,19 @@ class SwitchEngine:
             ValueError: si un valor no es válido o no cabe en el bus.
             OscillationError: si el circuito no se estabiliza.
         """
-        changed: list[int] = []
+        changes: list[tuple[Node, Logic]] = []
         for name, value in values.items():
-            for node, level in self._expand(name, value):
-                if self._values[node.id] != level:
-                    self._values[node.id] = level
-                    changed.append(node.id)
-        if not changed:
-            return
+            changes.extend(self._expand(name, value))
+        touched: set[int] = set()
         seeds: list[int] = []
-        for nid in changed:
-            self._count_toggle(nid)
-            seeds.extend(self._on_gate_change(nid))
-            seeds.extend(self._channel_neighbors(nid))
-        self._settle(seeds)
+        for node, level in changes:
+            if self._values[node.id] != level:
+                self._values[node.id] = level
+                touched.add(node.id)
+                seeds.extend(self._channel_neighbors(node.id))
+        if not touched:
+            return
+        self._settle(seeds, touched, changed_sources=set(touched))
 
     def _expand(self, name: str, value: InputValue) -> list[tuple[Node, Logic]]:
         nl = self.netlist
@@ -143,18 +197,49 @@ class SwitchEngine:
             return [(nl.inputs[name], to_logic(value))]
         raise KeyError(f"{nl.name}: {name!r} no es una entrada ni un bus de entrada")
 
+    def load_state(self, values: Sequence[Logic]) -> None:
+        """Carga el valor de todos los nodos (indexados por ``Node.id``) sin estabilizar.
+
+        Los rieles conservan su valor. Se usa junto con :meth:`resettle` para evaluar
+        una celda a partir de un estado dado (motor ``cached``).
+        """
+        if len(values) != len(self._values):
+            raise ValueError("load_state: cantidad de valores distinta del número de nodos")
+        for node in self.netlist.nodes:
+            if node.kind in (NodeKind.VDD, NodeKind.GND):
+                continue
+            self._values[node.id] = values[node.id]
+            if node.kind is NodeKind.INTERNAL:
+                self._strengths[node.id] = Strength.CHARGE
+        for t in self.netlist.transistors:
+            self._conduction[t.id] = conduction_for(t.kind, self._values[t.gate.id])
+
+    def resettle(self) -> None:
+        """Reevalúa todos los nodos internos desde el estado actual."""
+        self._settle(self._initial_seeds(), set())
+
     # -------------------------------------------------------------- lectura
     def value(self, node: Node) -> Logic:
         """Valor actual de ``node``."""
         return self._values[node.id]
 
+    def values(self) -> list[Logic]:
+        """Copia de los valores de todos los nodos, indexados por ``Node.id``."""
+        return list(self._values)
+
     def strength(self, node: Node) -> Strength:
         """Fuerza con la que ``node`` tiene su valor actual."""
         return self._strengths[node.id]
 
+    def strengths(self) -> list[Strength]:
+        """Copia de las fuerzas de todos los nodos, indexadas por ``Node.id``."""
+        return list(self._strengths)
+
     def read(self, name: str) -> Logic:
         """Valor actual del nodo ``name`` (puerto o nodo interno)."""
-        return self._values[self.netlist.find(name).id]
+        nl = self.netlist
+        node = nl.outputs.get(name) or nl.inputs.get(name) or nl.find(name)
+        return self._values[node.id]
 
     def read_bus(self, name: str) -> list[Logic]:
         """Valores de un bus de entrada o salida, LSB primero."""
@@ -175,11 +260,11 @@ class SwitchEngine:
 
     def conduction(self, transistor: Transistor) -> Conduction:
         """Estado actual del canal de ``transistor``."""
-        return self._conduction[transistor.id]
+        return conduction_for(transistor.kind, self._values[transistor.gate.id])
 
     # ----------------------------------------------------------- contadores
     def stats(self) -> SimStats:
-        """Totales de conmutaciones, eventos de transistor y evaluaciones de CCC."""
+        """Totales de conmutaciones, eventos de transistor y evaluaciones."""
         return SimStats(sum(self.node_toggles), sum(self.transistor_events), self.evaluations)
 
     def reset_counters(self) -> None:
@@ -188,70 +273,74 @@ class SwitchEngine:
         self.transistor_events = [0] * len(self.transistor_events)
         self.evaluations = 0
 
-    def _count_toggle(self, nid: int) -> None:
-        v = self._values[nid]
-        if not v.is_known:
-            return
-        last = self._last_known[nid]
-        if last is not None and last != v:
-            self.node_toggles[nid] += 1
-        self._last_known[nid] = v
+    def _commit_counts(self, touched: set[int]) -> None:
+        """Actualiza los contadores comparando el estado estable nuevo con el anterior.
+
+        - Un nodo conmuta cuando su valor **manejado** (0/1 con fuerza ≥ DRIVEN) difiere
+          del último valor manejado que tuvo. La carga retenida no cuenta: un nodo
+          aislado no se carga ni se descarga.
+        - Un transistor genera un evento cuando su estado definido (ON/OFF) difiere del
+          último estado definido que tuvo.
+        """
+        gates: set[Transistor] = set()
+        for nid in touched:
+            gates.update(self._gated_all[nid])
+            value = self._values[nid]
+            if not value.is_known or self._strengths[nid] < Strength.DRIVEN:
+                continue
+            last = self._last_driven[nid]
+            if last is not None and last != value:
+                self.node_toggles[nid] += 1
+            self._last_driven[nid] = value
+        for t in gates:
+            c = conduction_for(t.kind, self._values[t.gate.id])
+            if c is Conduction.UNKNOWN:
+                continue
+            last_c = self._last_conduction[t.id]
+            if last_c is not None and last_c is not c:
+                self.transistor_events[t.id] += 1
+            self._last_conduction[t.id] = c
 
     # ------------------------------------------------------------ simulación
-    def _on_gate_change(self, nid: int) -> list[int]:
-        """Actualiza los transistores con compuerta en ``nid``; devuelve nodos a reevaluar."""
-        seeds: list[int] = []
-        gate_value = self._values[nid]
-        for t in self._gated[nid]:
-            new = conduction_for(t.kind, gate_value)
-            if new is self._conduction[t.id]:
-                continue
-            self._conduction[t.id] = new
-            if new is not Conduction.UNKNOWN:
-                last = self._last_conduction[t.id]
-                if last is not None and last is not new:
-                    self.transistor_events[t.id] += 1
-                self._last_conduction[t.id] = new
-            seeds.append(t.source.id)
-            seeds.append(t.drain.id)
-        return seeds
+    def _enqueue(self, nid: int) -> None:
+        if not self._is_source[nid] and nid not in self._pending:
+            self._pending.add(nid)
+            self._queue.append(nid)
 
     def _channel_neighbors(self, nid: int) -> list[int]:
         """Nodos al otro lado de los canales que tocan ``nid``."""
         return [t.drain.id if t.source.id == nid else t.source.id for t in self._channel[nid]]
 
-    def _settle(self, seeds: Sequence[int]) -> None:
-        queue: deque[int] = deque()
-        pending: set[int] = set()
+    def _apply(self, nid: int, value: Logic, strength: Strength, touched: set[int]) -> None:
+        """Asigna (valor, fuerza) a un nodo interno y propaga si el valor cambió."""
+        self._strengths[nid] = strength
+        if self._values[nid] == value:
+            return
+        self._values[nid] = value
+        touched.add(nid)
+        self._events += 1
+        if self._events > self.max_events:
+            raise OscillationError(
+                f"{self.netlist.name}: sin estado estable tras {self.max_events} "
+                f"eventos (último nodo: {self.netlist.nodes[nid].name!r})"
+            )
+        self._node_changed(nid)
+
+    def _settle(
+        self, seeds: Sequence[int], touched: set[int], changed_sources: set[int] | None = None
+    ) -> None:
+        self._events = 0
+        for nid in changed_sources or ():
+            self._node_changed(nid)
         for nid in seeds:
-            if not self._is_source[nid] and nid not in pending:
-                pending.add(nid)
-                queue.append(nid)
-        events = 0
-        while queue:
-            nid = queue.popleft()
-            if nid not in pending:
-                continue
-            members, edges, boundary = self._component(nid)
-            pending.difference_update(members)
-            self.evaluations += 1
-            new_values = self._evaluate(members, edges, boundary)
-            for m, (value, strength) in new_values.items():
-                self._strengths[m] = strength
-                if self._values[m] == value:
-                    continue
-                self._values[m] = value
-                self._count_toggle(m)
-                events += 1
-                if events > self.max_events:
-                    raise OscillationError(
-                        f"{self.netlist.name}: sin estado estable tras {self.max_events} "
-                        f"eventos (último nodo: {self.netlist.nodes[m].name!r})"
-                    )
-                for s in self._on_gate_change(m):
-                    if not self._is_source[s] and s not in pending:
-                        pending.add(s)
-                        queue.append(s)
+            self._enqueue(nid)
+        try:
+            while self._work_pending():
+                self._step(touched)
+        finally:
+            self._queue.clear()
+            self._pending.clear()
+        self._commit_counts(touched)
 
     def _component(self, start: int) -> tuple[list[int], list[Transistor], set[int]]:
         """CCC de ``start``: nodos internos, transistores no cortados y nodos fuente."""
@@ -288,9 +377,11 @@ class SwitchEngine:
         for m in members:
             v_on, s_on = on[m]
             v_maybe, s_maybe = maybe[m]
-            if v_on == v_maybe:
+            if v_on == v_maybe and v_on is not Logic.X:
                 result[m] = (v_on, s_on)
             else:
+                # Una X lleva la fuerza máxima de ambos grafos: así no depende de cuál
+                # de los dos la produjo ni del orden de evaluación.
                 result[m] = (Logic.X, max(s_on, s_maybe))
         return result
 
@@ -305,7 +396,6 @@ class SwitchEngine:
                 x = parent[x]
             return x
 
-        attached: dict[int, list[int]] = {}
         pending_sources: list[tuple[int, int]] = []
         for t in edges:
             a, b = t.source.id, t.drain.id
@@ -318,6 +408,7 @@ class SwitchEngine:
                 pending_sources.append((b, a))
             elif b_src and not a_src:
                 pending_sources.append((a, b))
+        attached: dict[int, list[int]] = {}
         for member, source in pending_sources:
             attached.setdefault(find(member), []).append(source)
 
@@ -345,14 +436,10 @@ class SwitchEngine:
                 warnings.warn(
                     f"{self.netlist.name}: cortocircuito VDD–GND en {{{names}}}",
                     ShortCircuitWarning,
-                    stacklevel=4,
+                    stacklevel=5,
                 )
-            if resolved.value is Logic.Z:
-                for n in nodes:
-                    result[n] = (Logic.Z, Strength.NONE)
-            else:
-                for n in nodes:
-                    result[n] = (resolved.value, resolved.strength)
+            for n in nodes:
+                result[n] = (resolved.value, resolved.strength)
         return result
 
     def _shorted(self, sources: list[int]) -> bool:
