@@ -4,6 +4,60 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-10-08 · F4 — Interfaces, referencia y pruebas por adelantado
+
+**Hecho**
+- Completos (son especificación): `fpu/format.py` (FloatFormat, Flags, FPClass, FPResult
+  con `from_outputs`), `cpu/isa.py` (opcodes, encode/decode, FSR), `core/unit.py`
+  (`HardwareUnit`, `make_engine`), `assistant/port.py` + `assistant/null.py`.
+- `reference/`: `fpu.py` (aritmética racional exacta, RNE, subnormales, flags, tininess
+  después de redondear, `round_and_pack`, `from_decimal` sin doble redondeo), `integer.py`,
+  `blocks.py`, `cells.py`, `machine.py` (ISS de T754).
+- Validación de la referencia contra numpy: 331 552 casos (2 formatos × 4 ops) → 0
+  discrepancias de valor; binary32: 0 discrepancias de flags NV/DZ/OF/UF vs x86.
+- Stubs con firmas, puertos y nombres de celda para todos los módulos; CLI con subcomandos
+  stub; `examples/*.t754` (4 programas).
+- `tests/oracle/` (oráculo verificado en cada uso, casos borde, aleatorios dirigidos,
+  comparación legible), `tests/pendientes.py` (`@pendiente(N)` = xfail estricto con
+  `raises=NotImplementedError`), `TODO.md` con la numeración #1–#33.
+- Suite: 210 pasan, 164 pendientes (xfail), 1 omitida (GUI sin PySide6).
+
+**Validación de las pruebas por adelantado (en copia desechable, nada se commitea)**
+- Soluciones rápidas de celdas (incl. FA espejo 28 T, MUX2 12 T, latch/DFF/registro),
+  bloques (RCA, CLA plano, add/sub, comparador, muxes, shifters con sticky, LZC) y ALU:
+  88/88 pruebas pasan → interfaces implementables y pruebas correctas.
+- FPU con dobles de referencia (valida lógica de pruebas, oráculo y umbrales): 61/63 +
+  17/17 lentas (las 2 restantes requieren estructura real de compuertas, esperado).
+- Métricas con implementación rápida: pasan.
+- **No validadas aún:** ensamblador, decodificador, banco de registros, máquina, CLI,
+  adaptadores Ollama/Anthropic, GUI (las de Héctor se validan al implementarlas en F7).
+
+**Defectos del motor encontrados por la validación y corregidos (con regresiones)**
+- Un nodo que pasaba de carga retenida a valor manejado sin cambiar de valor no actualizaba
+  su último valor manejado → conteos distintos entre motores. Ahora un cambio de fuerza
+  también marca el nodo.
+- Cortocircuitos transitorios (solapamiento de TG al cambiar la selección) se advertían;
+  ahora solo se reportan si persisten en el estado estable (ADR-0007 p. 7, docs/02).
+
+**Decisiones**
+- Hallazgo binary16: numpy detecta tininess antes de redondear (conversión por software);
+  el oráculo compara UF de binary16 contra la referencia. Caso fijado en prueba.
+- `round_and_pack(fmt)` es la interfaz compartida Daniel/Fabricio; su contrato exacto es
+  `reference.fpu.round_and_pack` (exponente sesgado del MSB con signo en e+2 bits).
+- Divisor: `quotient_bits = p + 3`; desplazadores y LZC: `width.bit_length()` bits.
+- Recomendación para Jairo: latch con INV en la entrada de datos (entradas solo a
+  compuertas también en celdas secuenciales).
+- Nuevo ámbito de commit `reference` (se agrega a CONTRIBUTING en F5).
+
+**Pendientes**
+- Nombres completos del equipo (portada APA) y usuarios de GitHub (F8).
+
+**Siguiente paso**
+- F5: GUIA.md de cada módulo, EQUIPO.md, CONTRIBUTING.md, prompts internos,
+  `scripts/validar.py` y revisión de palabras prohibidas en material formal.
+
+---
+
 ## 2026-10-08 · F3 — Celdas semilla, motor cached y conteo
 
 **Hecho**
