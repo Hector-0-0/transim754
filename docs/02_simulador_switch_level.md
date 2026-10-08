@@ -98,10 +98,15 @@ alcanzar un estado estable.
 
 ## 3. Contadores de actividad
 
-- **Conmutaciones por nodo:** se incrementan cuando un nodo pasa de 0 a 1 o de 1 a 0.
-  Las transiciones que pasan por X o Z no se cuentan como conmutaciones completas.
-- **Eventos por transistor:** se incrementan cuando cambia el estado de conducción de un
-  transistor (abierto ↔ cerrado).
+- **Conmutaciones por nodo:** se cuenta una conmutación cada vez que un nodo toma un
+  valor definido (0 o 1) distinto del último valor definido que tuvo. Una secuencia
+  1 → X → 0 cuenta como una conmutación; 1 → X → 1 no cuenta; la primera definición de
+  un nodo desde el estado inicial X tampoco cuenta.
+- **Eventos por transistor:** misma regla aplicada al estado del canal: se cuenta un
+  evento cuando un transistor pasa a conducir o a cortarse y su último estado definido
+  era el opuesto.
+- **Límite de eventos:** cada estabilización admite como máximo `max_events` cambios de
+  valor de nodos (por defecto 10 000); al superarlo se lanza `OscillationError`.
 
 Ambos contadores alimentan la métrica de actividad α (ADR-0013).
 
