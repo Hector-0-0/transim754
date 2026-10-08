@@ -4,6 +4,34 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-10-08 · F6 — GitHub (+ F8)
+
+**Hecho**
+- Daniel → @Sergiodam73 (verificado). CODEOWNERS sin marcadores pendientes; EQUIPO.md completo.
+- Invitaciones de colaborador (permiso write) enviadas a los 5: JairoHCh, devronaldaz,
+  Sergiodam73, Fabrizzio-07, yennyestherchavez (autorizado por la especificación de F8).
+- 29 labels propios (16 modulo:*, 4 tipo:*, 3 prioridad:*, 6 persona:*; más los 10 por defecto), 3 milestones (v0.1.0-avance con
+  fecha 2026-10-12, v0.5.0-parcial, v1.0.0-final) e issues #1–#33 creados desde TODO.md con
+  `scripts/crear_issues.sh`; numeración verificada (#N = tarea N); re-ejecución → 0 cambios.
+- Asignación: #29–#33 a Héctor. Hallazgo: GitHub ignora sin error la asignación a quien no
+  aceptó la invitación → `scripts/asignar_issues.sh` ahora verifica y lista pendientes.
+- Tag `v0.0.1-base` y protección de `main` (ver abajo).
+
+**Decisiones**
+- Protección de main: PR obligatorio, 1 aprobación, CI "ruff + mypy + pytest (rápidas)"
+  obligatorio y al día, sin force push ni borrado, **enforce_admins = true** (la excepción de
+  push directo de Héctor terminó con el tag). **No** se exige aprobación del code owner: con un
+  solo dueño por módulo, el autor-dueño no podría integrar (no puede aprobarse a sí mismo).
+  CODEOWNERS solo solicita revisores automáticamente.
+
+**Pendientes**
+- Cuando cada integrante acepte su invitación: `scripts/asignar_issues.sh`.
+- Apellidos de Daniel, Fabricio y Yenny para la portada APA (si se desea).
+- F7: demo CLI y versión final de docs/00_propuesta.md. Ahora todo cambio de Héctor va por PR
+  y necesita la aprobación de otro integrante.
+
+---
+
 ## 2026-10-08 · F5 — Guías, validación y material interno (+ F8 parcial)
 
 **Hecho**

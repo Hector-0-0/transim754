@@ -5,6 +5,10 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Sin publicar]
 
+## [0.0.1-base] — 2026-10-08
+
+Base del repositorio lista para el trabajo en paralelo del equipo.
+
 ### Agregado
 - Andamiaje del repositorio: estructura de paquetes `src/transim/` por capas (L0–L5),
   `pyproject.toml`, `Makefile`, configuración de pre-commit, integración continua
@@ -20,6 +24,8 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   T754) validados contra numpy; interfaces de todos los módulos; oráculo de pruebas;
   pruebas por adelantado marcadas como pendientes; programas de ejemplo `.t754`.
 - Guías técnicas de cada módulo, EQUIPO.md, CONTRIBUTING.md y `make validar M=<modulo>`.
+- Labels, milestones e issues #1–#33 en GitHub (`scripts/crear_issues.sh`, idempotente)
+  y asignación verificada (`scripts/asignar_issues.sh`).
 
 ### Corregido
 - El contador de conmutaciones considera los cambios solo de fuerza; los cortocircuitos se
