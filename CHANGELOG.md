@@ -19,10 +19,12 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 - Modelos de referencia completos (FPU exacta parametrizada, ALU, bloques, celdas, ISS de
   T754) validados contra numpy; interfaces de todos los módulos; oráculo de pruebas;
   pruebas por adelantado marcadas como pendientes; programas de ejemplo `.t754`.
+- Guías técnicas de cada módulo, EQUIPO.md, CONTRIBUTING.md y `make validar M=<modulo>`.
 
 ### Corregido
 - El contador de conmutaciones considera los cambios solo de fuerza; los cortocircuitos se
   reportan solo si persisten en el estado estable.
+- `HardwareUnit.evaluate` reporta las salidas sueltas definidas sobre un bit de bus.
 
 ## Hitos previstos
 - `v0.0.1-base` — base del repositorio lista para el trabajo en paralelo.

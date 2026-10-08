@@ -4,6 +4,42 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-10-08 · F5 — Guías, validación y material interno (+ F8 parcial)
+
+**Hecho**
+- GUIA.md (plantilla de 7 secciones) de cells, blocks, alu, fpu (ADDSUB y MULDIV), cpu,
+  metrics, assistant y ui/gui; EQUIPO.md (integrantes, grafo de dependencias, calendario,
+  validación) y CONTRIBUTING.md (primer día, identidad, ramas, commits, PR, DoD, reglas).
+- `scripts/validar.py` + `make validar M=<modulo> [COMPLETO=1]`: pruebas, pendientes
+  (`@pendiente(N)` y conjuntos `PENDIENTES = {…}`), stubs y métricas, con resumen PASS/FAIL.
+  Comprobado: `core` PASS hoy; `cells` llega a PASS con las soluciones de validación.
+- Datapaths FADD/FSUB, FMUL y FDIV descritos en las GUIA verificados con un modelo numérico
+  paso a paso contra la referencia: 176 928 operaciones, 0 discrepancias.
+- `interno/prompts/`: core, cells, blocks, fpu_addsub, fpu_muldiv, cpu, gui_metricas,
+  assistant, investigacion (A desarrollo, B autovalidación, C estudio) y revision_pr.
+- Revisión de material formal: grep "prompt|claude|chat|ia generativa" → solo el campo
+  `"prompt"` de la API de Ollama en la GUIA del asistente (excepción permitida). Ningún
+  documento formal enlaza a `interno/`. 21/21 diagramas Mermaid válidos.
+- Corrección: `HardwareUnit.evaluate` omitía salidas sueltas definidas sobre un bit de bus.
+
+**F8 parcial (usuarios recibidos)**
+- Jairo → @JairoHCh (Jairo Jhosimar Huaman Choque), Ronald → @devronaldaz (Matthews Ronald
+  Ayala Zubilete), Fabricio → @Fabrizzio-07, Yenny → @yennyestherchavez. Verificados con la
+  API de GitHub. Aplicados en CODEOWNERS y EQUIPO.md.
+- Daniel: usuario pendiente (`@PENDIENTE-Daniel` en CODEOWNERS).
+- Pendiente: invitar como colaboradores (requisito para asignar issues y para que CODEOWNERS
+  los reconozca) — esperando confirmación de Héctor.
+
+**Pendientes**
+- Usuario de GitHub y nombre completo de Daniel; apellidos de Fabricio y Yenny (portada APA).
+- Validar las pruebas de ensamblador, máquina, CLI, adaptadores IA y GUI al implementarlos.
+
+**Siguiente paso**
+- F6: labels, milestones, issues #1–#33 desde TODO.md (con verificación de numeración),
+  protección de `main` y tag `v0.0.1-base`.
+
+---
+
 ## 2026-10-08 · F4 — Interfaces, referencia y pruebas por adelantado
 
 **Hecho**
