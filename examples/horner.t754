@@ -1,0 +1,13 @@
+; Evaluación de p(x) = 2x² − 3x + 1 en x = 1.5 por el método de Horner:
+; p(x) = (2x − 3)x + 1
+; Salida esperada: 0x3F800000 (1.0). FSR esperado: 0.
+LI   F1, 1.5        ; x
+LI   F2, 2.0
+LI   F3, 3.0
+LI   F4, 1.0
+FMUL F5, F2, F1     ; 2x
+FSUB F5, F5, F3     ; 2x − 3
+FMUL F5, F5, F1     ; (2x − 3)x
+FADD F5, F5, F4     ; + 1
+OUT  F5
+HALT

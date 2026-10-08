@@ -1,0 +1,7 @@
+; Suma simple en binary32: 1.5 + 2.25 = 3.75
+; Salida esperada: 0x40700000. FSR esperado: 0.
+LI   F1, 1.5
+LI   F2, 2.25
+FADD F3, F1, F2
+OUT  F3
+HALT

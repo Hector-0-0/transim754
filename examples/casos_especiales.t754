@@ -1,0 +1,16 @@
+; Casos especiales de IEEE 754 (ADR-0003).
+; Salidas esperadas: 0x7F800000 (+∞), 0x7FC00000 (NaN), 0x7FC00000 (NaN), 0x80000000 (−0).
+; FSR esperado: 0x18 (NV | DZ).
+LI   F0, 0.0
+LI   F1, 1.0
+LI   F2, inf
+LI   F3, -0.0
+FDIV F4, F1, F0     ; 1 / 0  = +∞, divideByZero
+OUT  F4
+FDIV F5, F0, F0     ; 0 / 0  = NaN, invalid
+OUT  F5
+FSUB F6, F2, F2     ; ∞ − ∞  = NaN, invalid
+OUT  F6
+FADD F7, F3, F3     ; (−0) + (−0) = −0
+OUT  F7
+HALT

@@ -1,0 +1,11 @@
+; Underflow gradual (ejemplo 4 de docs/03) y aritmética exacta entre subnormales.
+; Salidas esperadas: 0x00400000, 0x00000002.
+; FSR esperado: 0x03 (UF | NX), levantado solo por la multiplicación.
+LI   F1, 0x00800001  ; 2^-126 · (1 + 2^-23), en bits
+LI   F2, 0.5
+FMUL F3, F1, F2      ; resultado subnormal, empate a par → 0x00400000
+OUT  F3
+LI   F4, 1e-45       ; menor subnormal (0x00000001)
+FADD F5, F4, F4      ; 2 · 2^-149 exacto: sin flags
+OUT  F5
+HALT
