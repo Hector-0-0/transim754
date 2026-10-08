@@ -35,6 +35,37 @@ extraerse una vez y reutilizarse.
 6. **Uso por defecto:** `switch` en las pruebas de celdas y bloques pequeños; `cached`
    en la FPU completa y en la CPU.
 
+## Precisiones de implementación
+
+Incorporadas al construir el motor (2026-10-08), sin cambiar la decisión:
+
+1. **Criterio de tabulación.** El motor `cached` tabula una instancia solo si cumple,
+   de forma verificada automáticamente: (a) su definición no es secuencial; (b) es una
+   celda primitiva, sin sub-instancias; (c) cada entrada de la celda solo llega a
+   compuertas de transistores de la celda; (d) cada salida de la instancia, fuera de
+   la celda, solo llega a compuertas. Con (c) y (d), todos los componentes conectados
+   por canal de la celda quedan dentro de ella, y su estado estable depende solo de
+   sus entradas y de su estado interno previo, que es la clave de la tabla. Las
+   instancias que no cumplen el criterio se simulan transistor por transistor dentro
+   del mismo motor, y el motor informa cuáles y por qué.
+2. **Regla de diseño de la biblioteca L1.** Para que todas las celdas sean tabulables,
+   la biblioteca adopta dos reglas: **entradas de alta impedancia** (solo a
+   compuertas) y **salidas restauradas** (manejadas por una red CMOS hacia los
+   rieles). En particular, el MUX2 de transmission gates lleva inversores en sus
+   entradas de datos y en su salida (12 transistores), lo que además evita cadenas
+   largas de transmission gates sin restaurar en el barrel shifter.
+3. **Definición precisa de equivalencia.** Ambos motores producen el mismo **estado
+   observable** (el conjunto de nodos con valor 0 o 1 impuesto con fuerza `SUPPLY` o
+   `DRIVEN`, y sus valores) y los mismos contadores de conmutaciones y de eventos por
+   transistor (ADR-0007, punto 9). Los nodos que solo retienen carga o valen X quedan
+   fuera de la comparación: su valor depende del orden de los eventos intermedios de
+   un modelo de retardo cero y no es reproducible ni siquiera entre dos ejecuciones
+   del motor `switch` con distinto orden de cola.
+4. **Evidencia.** La prueba de equivalencia recorre cada celda con entradas 0, 1, X y
+   Z, un sumador ripple-carry jerárquico, un circuito mixto (celdas tabulables, latch
+   secuencial, MUX sin buffer y transistores sueltos) y circuitos aleatorios generados
+   con hypothesis.
+
 ## Consecuencias
 
 - La validez de `cached` no es un supuesto: se demuestra con la prueba de equivalencia,

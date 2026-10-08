@@ -37,7 +37,8 @@ aproximación de primer orden.
 ## 4. Conteo esperado de las celdas base
 
 Estos valores corresponden a los diseños de la biblioteca de celdas y se verifican en
-las pruebas de L1:
+las pruebas de L1. Toda celda cumple dos reglas: sus entradas solo llegan a compuertas
+y sus salidas las maneja una red CMOS hacia los rieles (ADR-0008).
 
 | Celda | Transistores | Estructura |
 |---|---|---|
@@ -48,7 +49,7 @@ las pruebas de L1:
 | OR2 | 6 | NOR2 + INV |
 | XOR2 | 12 | CMOS complementario con entradas invertidas |
 | XNOR2 | 12 | CMOS complementario con entradas invertidas |
-| MUX2 | 6 | 2 transmission gates + INV de selección |
+| MUX2 | 12 | INV en cada entrada de datos, 2 transmission gates, INV de selección e INV de salida (entradas de alta impedancia y salida restaurada, ADR-0008) |
 | Sumador completo espejo | 28 | etapa de acarreo y de suma espejo con inversores |
 
 ## 5. Formato de los reportes

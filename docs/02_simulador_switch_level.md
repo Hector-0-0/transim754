@@ -98,33 +98,44 @@ alcanzar un estado estable.
 
 ## 3. Contadores de actividad
 
-- **Conmutaciones por nodo:** se cuenta una conmutación cada vez que un nodo toma un
-  valor definido (0 o 1) distinto del último valor definido que tuvo. Una secuencia
-  1 → X → 0 cuenta como una conmutación; 1 → X → 1 no cuenta; la primera definición de
-  un nodo desde el estado inicial X tampoco cuenta.
-- **Eventos por transistor:** misma regla aplicada al estado del canal: se cuenta un
-  evento cuando un transistor pasa a conducir o a cortarse y su último estado definido
-  era el opuesto.
+Los contadores se actualizan **al final de cada estabilización**, comparando el estado
+estable nuevo con el anterior:
+
+- **Conmutaciones por nodo:** se cuenta una conmutación cuando el valor **manejado**
+  de un nodo (0 o 1 con fuerza `SUPPLY` o `DRIVEN`) difiere del último valor manejado
+  que tuvo. Una secuencia 1 → X → 0 cuenta como una conmutación; 1 → X → 1 no cuenta;
+  la primera definición de un nodo tampoco. La carga retenida no cuenta: un nodo
+  aislado no se carga ni se descarga.
+- **Eventos por transistor:** se cuenta un evento cuando un transistor pasa a conducir
+  o a cortarse y su último estado definido era el opuesto.
+- **Glitches:** los valores intermedios dentro de una estabilización no se cuentan. En
+  un modelo de retardo cero dependen del orden en que se procesan los eventos y no
+  corresponden a tiempos físicos; por eso la actividad medida es una cota inferior de
+  la real.
 - **Límite de eventos:** cada estabilización admite como máximo `max_events` cambios de
   valor de nodos (por defecto 10 000); al superarlo se lanza `OscillationError`.
 
-Ambos contadores alimentan la métrica de actividad α (ADR-0013).
-
 ## 4. Motor `cached`
 
-El motor `cached` trata cada **instancia de celda combinacional** como una caja negra
+El motor `cached` trata cada **instancia de celda tabulable** como una caja negra
 cuyo comportamiento se obtuvo del propio netlist de transistores:
 
-1. **Extracción:** al primer uso de un tipo de celda, se simula con el motor `switch`
-   cada una de las 2^n combinaciones de entradas 0/1 y se guarda la tabla de verdad.
-2. **Memoización con estado:** la tabla usada en simulación tiene como clave
+1. **Criterio:** la celda no es secuencial, no tiene sub-instancias, sus entradas solo
+   llegan a compuertas y sus salidas, fuera de la celda, solo llegan a compuertas. Las
+   instancias que no lo cumplen se simulan transistor por transistor dentro del mismo
+   motor (`switch_instances` informa cuáles y por qué).
+2. **Extracción:** al primer uso de un tipo de celda se simulan con el motor `switch`
+   las 2^n combinaciones de entradas 0/1; si alguna salida queda indefinida, la celda
+   se rechaza como no combinacional.
+3. **Memoización con estado:** la tabla usada en simulación tiene como clave
    `(entradas, estado de los nodos internos)` y como valor `(nuevo estado interno,
-   salidas, conmutaciones por nodo, eventos por transistor)`. Las claves que no están
-   en la tabla (por ejemplo, con entradas X) se calculan con `switch` y se guardan.
-3. **Celdas secuenciales:** siempre se simulan con `switch`.
+   fuerzas)`. Las claves que no están en la tabla (por ejemplo, con entradas X) se
+   calculan con el motor `switch` y se guardan.
+4. **Contadores:** se calculan con la misma regla de la sección 3, por lo que ambos
+   motores reportan los mismos conteos.
 
-La prueba de equivalencia compara ambos motores sobre las mismas secuencias de entrada
-y exige salidas, conteos de transistores y conmutaciones idénticos.
+La prueba de equivalencia exige el mismo **estado observable** (nodos con valor 0/1
+manejado) y los mismos contadores en ambos motores.
 
 ## 5. Interfaz principal (resumen)
 

@@ -47,9 +47,17 @@ valores indeterminados.
 8. **Oscilación:** un límite configurable de iteraciones por cambio de entradas
    (por defecto 10 000 eventos) detecta circuitos que no se estabilizan (por ejemplo,
    un anillo de inversores) y lanza `OscillationError`.
-9. **Conteo de actividad:** el simulador cuenta las conmutaciones de cada nodo (cambios
-   entre 0 y 1) y los eventos de conmutación de cada transistor (cambios de su estado
-   de conducción).
+9. **Conteo de actividad sobre estados estables:** al terminar cada estabilización se
+   compara el estado nuevo con el anterior. Un nodo **conmuta** cuando su valor
+   manejado (0 o 1 con fuerza `SUPPLY` o `DRIVEN`) difiere del último valor manejado
+   que tuvo; la carga retenida no cuenta, porque un nodo aislado no se carga ni se
+   descarga. Un transistor genera un **evento** cuando su estado definido (conduce o
+   cortado) difiere del último estado definido que tuvo. Los valores intermedios de
+   una estabilización (glitches) no se cuentan: en un modelo de retardo cero dependen
+   del orden de procesamiento de los eventos y no corresponden a tiempos físicos.
+10. **Fuerza de una X:** cuando el resultado de un nodo es X, su fuerza es la máxima de
+    las obtenidas en `G_on` y `G_maybe`, de modo que no depende del orden de
+    evaluación.
 
 ## Consecuencias
 
@@ -59,7 +67,9 @@ valores indeterminados.
 - La ausencia de tiempos de propagación impide medir retardos reales; la métrica de
   velocidad es la profundidad lógica en niveles de celda (ADR-0013).
 - El conteo de conmutaciones es una aproximación de la actividad α usada en la
-  estimación de potencia dinámica.
+  estimación de potencia dinámica. Al excluir los glitches es una **cota inferior** de
+  la actividad real: medir los glitches exigiría un modelo de retardos, fuera de
+  alcance.
 
 ## Alternativas descartadas
 

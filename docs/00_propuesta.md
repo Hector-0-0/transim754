@@ -179,7 +179,8 @@ corriente entre alimentación y tierra (Weste y Harris, 2011).
 
 A partir de esta idea se construyen celdas más complejas. Un multiplexor de dos
 entradas usa dos *transmission gates* (un nMOS y un pMOS en paralelo) que conectan una
-u otra entrada a la salida según la señal de selección. Un sumador completo en
+u otra entrada a la salida según la señal de selección, con inversores que restauran
+los niveles lógicos en sus entradas y en su salida. Un sumador completo en
 configuración espejo usa 28 transistores. Un flip-flop maestro-esclavo usa dos latches
 de transmission gates con relojes complementarios: mientras uno captura, el otro
 retiene. El simulador modela además el almacenamiento de carga: un nodo aislado
