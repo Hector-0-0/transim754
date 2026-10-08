@@ -11,7 +11,7 @@ from transim.cpu.isa import Instruction, Opcode
 from transim.fpu.format import BINARY32, FloatFormat
 from transim.reference.fpu import from_decimal
 
-WORD_BYTES = isa.WORD_BITS // 8
+WORD_BYTES = isa.WORD_BYTES
 _REGISTRO = re.compile(r"^[fF]([0-9]+)$")
 
 
