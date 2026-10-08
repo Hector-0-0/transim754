@@ -11,11 +11,14 @@ from transim.core.netlist import Instance, Netlist, NetlistError
 from transim.core.node import Node, NodeKind
 from transim.core.signals import Logic, Signal, Strength, to_logic
 from transim.core.transistor import Conduction, Transistor, TransistorType
+from transim.core.unit import EngineName, HardwareUnit, make_engine
 
 __all__ = [
     "CachedEngine",
     "CellTable",
     "Conduction",
+    "EngineName",
+    "HardwareUnit",
     "Instance",
     "Logic",
     "Netlist",
@@ -31,6 +34,7 @@ __all__ = [
     "SwitchEngine",
     "Transistor",
     "TransistorType",
+    "make_engine",
     "table_for",
     "to_logic",
 ]
