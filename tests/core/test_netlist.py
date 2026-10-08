@@ -124,3 +124,16 @@ def test_instancia_repetida() -> None:
     nl.instantiate(inversor(), "u", {"a": nl.vdd})
     with pytest.raises(NetlistError, match="repetido"):
         nl.instantiate(inversor(), "u", {"a": nl.vdd})
+
+
+def test_hardware_unit_reporta_salida_suelta_sobre_bit_de_bus() -> None:
+    from transim.cells.combinational import inv
+    from transim.core.unit import HardwareUnit
+
+    nl = Netlist("signo")
+    a = nl.input_bus("a", 2)
+    y = nl.output_bus("y", 2)
+    for i in range(2):
+        nl.instantiate(inv(), f"u{i}", {"a": a[i], "y": y[i]})
+    nl.mark_output("n", y[1])
+    assert HardwareUnit(nl, "switch").evaluate({"a": 0b01}) == {"y": 0b10, "n": 1}

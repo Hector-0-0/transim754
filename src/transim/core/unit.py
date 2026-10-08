@@ -49,11 +49,13 @@ class HardwareUnit:
         self.engine.set_inputs(inputs)
         nl = self.netlist
         result: dict[str, int | None] = {}
-        bus_bits = {n.id for bits in nl.output_buses.values() for n in bits}
+        bus_bit_names = {
+            f"{b}[{i}]" for b, bits in nl.output_buses.items() for i in range(len(bits))
+        }
         for name in nl.output_buses:
             result[name] = self.engine.read_int(name)
         for name, node in nl.outputs.items():
-            if node.id in bus_bits:
+            if name in bus_bit_names:
                 continue
             value = self.engine.value(node)
             result[name] = int(value) if value.is_known else None
