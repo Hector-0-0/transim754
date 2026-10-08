@@ -4,6 +4,45 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-10-08 · F3 — Celdas semilla, motor cached y conteo
+
+**Hecho**
+- `cells/combinational.py`: INV (2 T), NAND2 (4 T), NOR2 (4 T), constructores memoizados
+  (siempre el mismo objeto). `cells/library.py`: registro `CELLS`, `cell()`, `available()`.
+- `core/engine_cached.py`: `CellTable` (tabla de verdad extraída con el motor switch +
+  memoización `(entradas, estado) → (estado, fuerzas)`), `table_for`, `CachedEngine` mixto
+  (celdas tabulables por tabla; el resto transistor por transistor) con `cached_instances`,
+  `switch_instances` (con motivo) y `table_stats`.
+- `metrics/count.py`: `count`, `count_by_instance`, `count_by_cell`.
+- Pruebas: 101 en total. Equivalencia: cada celda con 0/1/X/Z, RCA jerárquico de 9 NAND
+  por bit, circuito mixto, 60 circuitos aleatorios (hypothesis) en CI.
+  Estrés local: 300 semillas del mixto + 1500 aleatorios → 0 discrepancias.
+- Rendimiento RCA de 16 bits: switch 1,20 ms/op, cached 0,27 ms/op (×4,4), conteos idénticos.
+
+**Decisiones (documentadas en ADR-0007 p. 9–10, ADR-0008 "Precisiones", docs/02 §3–4, docs/05)**
+- Actividad contada sobre **estados estables** y sobre **valores manejados** (fuerza ≥ DRIVEN):
+  los glitches de retardo cero dependen del orden de eventos; la carga retenida no conmuta.
+- Equivalencia definida sobre el **estado observable** (nodos 0/1 manejados) + contadores.
+  Hallazgo que lo motivó: con un MUX de TG sin buffer y selección X, el nodo de salida flota y
+  su carga depende del orden de eventos (distinto entre motores, y también entre dos órdenes
+  del mismo motor switch).
+- Fuerza de una X = máximo de G_on y G_maybe (determinista).
+- Criterio de tabulación automático (no secuencial, primitiva, entradas solo a compuertas,
+  salidas sin canales externos). Regla de biblioteca L1: entradas de alta impedancia y
+  salidas restauradas → **MUX2 de 12 T** (INV en entradas de datos y salida). Afecta a Jairo
+  (celda) y a Ronald (barrel shifter: sin cadenas largas de TG).
+- `Engine.read()` busca primero en puertos (alias de `mark_output`).
+
+**Pendientes**
+- Nombres completos del equipo (portada APA) y usuarios de GitHub (F8).
+
+**Siguiente paso**
+- F4: stubs con firmas para todos los módulos, `reference/` completo (FPU parametrizada con RNE,
+  subnormales y flags, validada contra numpy en binary32 y binary16), harness `tests/oracle/`,
+  pruebas por adelantado con `xfail(strict=True)`.
+
+---
+
 ## 2026-10-08 · F2 — Núcleo L0
 
 **Hecho**

@@ -14,6 +14,8 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   glosario, esqueleto de investigación y los 13 ADR.
 - Núcleo L0: valores y fuerzas, transistores, netlist jerárquico con buses e instancias,
   y motor `switch` con CCC, carga retenida, cortocircuitos, oscilación y conteo de actividad.
+- Celdas semilla INV, NAND2 y NOR2; motor `cached` con tablas extraídas automáticamente y
+  equivalencia probada; conteo de transistores por módulo y por celda.
 
 ## Hitos previstos
 - `v0.0.1-base` — base del repositorio lista para el trabajo en paralelo.
