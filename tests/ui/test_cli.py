@@ -22,7 +22,6 @@ def invocar(*args: str) -> Result:
     return resultado
 
 
-@pendiente(31)
 def test_calc_binary32() -> None:
     r = invocar("calc", "1.5", "+", "2.25", "--format", "binary32")
     assert r.exit_code == 0
@@ -30,20 +29,17 @@ def test_calc_binary32() -> None:
     assert "3.75" in r.output
 
 
-@pendiente(31)
 def test_calc_con_traza_y_flags() -> None:
     r = invocar("calc", "1", "/", "0", "--trace")
-    assert "0x7F800000" in r.output.upper()
+    assert "0x7F800000" in r.output
     assert "DZ" in r.output
 
 
-@pendiente(31)
 def test_calc_operador_invalido() -> None:
     r = invocar("calc", "1", "%", "2")
     assert r.exit_code != 0
 
 
-@pendiente(31)
 def test_asm_y_run(tmp_path: Path) -> None:
     salida = tmp_path / "suma.bin"
     r = invocar("asm", str(EJEMPLOS / "suma_simple.t754"), "-o", str(salida))
