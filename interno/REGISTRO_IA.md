@@ -7,3 +7,4 @@ está en `docs/06_politica_ia.md`; aquí va el detalle operativo.
 |---|---|---|---|---|---|
 | 2026-10-08 | Héctor | Claude (Claude Code) | Base F0: andamiaje del repositorio | Propuso y escribió `pyproject.toml`, `Makefile`, CI, plantillas de GitHub y CLI mínimo | `make install`, `make lint`, `make typecheck`, `make test` en verde; revisión manual de cada archivo |
 | 2026-10-08 | Héctor | Claude (Claude Code) | Base F1: docs 00–06, 13 ADR, glosario, investigación, README | Redactó la documentación de diseño y los ejemplos IEEE 754 | Ejemplos verificados contra numpy (`tests/docs`); diagramas validados con el parser de mermaid; revisión técnica de cada ADR |
+| 2026-10-08 | Héctor | Claude (Claude Code) | Base F2: núcleo L0 (señales, netlist, motor switch) | Diseñó e implementó el núcleo y sus pruebas | 65 pruebas propias (casos de ADR-0007 + hypothesis), mypy estricto, revisión del algoritmo G_on/G_maybe |

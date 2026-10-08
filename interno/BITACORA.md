@@ -4,6 +4,37 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-10-08 · F2 — Núcleo L0
+
+**Hecho**
+- `core/signals.py` (Logic, Strength, Signal, `resolve`, `to_logic`), `core/node.py`,
+  `core/transistor.py` (TransistorType, Conduction), `core/netlist.py` (puertos, buses,
+  `transmission_gate`, `instantiate` jerárquico con `Instance`), `core/engine_switch.py`.
+- 65 pruebas en `tests/core/`: inversor, NAND2, NOR2, AND2 jerárquico, TG, carga retenida
+  (TG y nodo interno de la pila), reparto de carga → X, cortocircuito → X + `ShortCircuitWarning`,
+  anillo NAND+2 INV → `OscillationError`, propagación de X/Z, conteo de conmutaciones y
+  eventos, buses, errores de construcción, propiedad con hypothesis.
+- Rendimiento medido: cadena de 2000 inversores (4000 T) ≈ 200 000 eventos de transistor/s.
+
+**Decisiones**
+- Conmutación = nuevo valor definido distinto del último valor definido (1→X→0 cuenta 1).
+  Documentado en docs/02 §3.
+- Las fuentes (VDD, GND, entradas) no se atraviesan al formar el CCC.
+- `instantiate` aplana al instanciar y registra `Instance` con camino, padre y transistores;
+  `leaf_instances()` da las celdas primitivas (base del motor cached y del camino crítico).
+- Ayudas de prueba compartidas en `tests/core/circuitos.py`; pytest con `pythonpath = ["tests"]`.
+- El anillo de prueba usa NAND + 2 INV porque un anillo de 3 INV puro arranca en X y se
+  queda estable en X (el modelo es correcto: no hay valor definido que oscile).
+
+**Pendientes**
+- Nombres completos del equipo (portada APA) y usuarios de GitHub (F8).
+
+**Siguiente paso**
+- F3: celdas INV, NAND2, NOR2 en `cells/`, `engine_cached` con extracción automática y
+  memoización con estado interno, prueba de equivalencia de motores y `metrics/count.py`.
+
+---
+
 ## 2026-10-08 · F1 — Documentación de diseño
 
 **Hecho**
