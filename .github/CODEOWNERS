@@ -1,0 +1,32 @@
+# Un dueño por módulo. Los marcadores @PENDIENTE-<nombre> se reemplazan por los
+# usuarios reales de GitHub en la fase F8. Mientras tanto GitHub los ignora.
+
+*                               @Hector-0-0
+
+/src/transim/core/              @Hector-0-0
+/src/transim/cpu/               @Hector-0-0
+/src/transim/assistant/         @Hector-0-0
+/src/transim/ui/cli.py          @Hector-0-0
+/src/transim/reference/         @Hector-0-0
+
+/src/transim/cells/             @PENDIENTE-Jairo
+/tests/cells/                   @PENDIENTE-Jairo
+
+/src/transim/blocks/            @PENDIENTE-Ronald
+/src/transim/alu/               @PENDIENTE-Ronald
+/tests/blocks/                  @PENDIENTE-Ronald
+/tests/alu/                     @PENDIENTE-Ronald
+
+/src/transim/fpu/format.py      @PENDIENTE-Daniel
+/src/transim/fpu/codec.py       @PENDIENTE-Daniel
+/src/transim/fpu/special.py     @PENDIENTE-Daniel
+/src/transim/fpu/rounding.py    @PENDIENTE-Daniel
+/src/transim/fpu/add_sub.py     @PENDIENTE-Daniel
+
+/src/transim/fpu/mul.py         @PENDIENTE-Fabricio
+/src/transim/fpu/div.py         @PENDIENTE-Fabricio
+
+/src/transim/ui/gui/            @PENDIENTE-Yenny
+/src/transim/metrics/           @PENDIENTE-Yenny
+/tests/metrics/                 @PENDIENTE-Yenny
+/docs/investigacion/            @PENDIENTE-Yenny

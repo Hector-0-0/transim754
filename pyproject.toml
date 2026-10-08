@@ -1,0 +1,87 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "transim754"
+version = "0.0.1"
+description = "Procesador con transistores simulados: FPU IEEE 754 construida desde transistores nMOS/pMOS en un simulador switch-level."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12,<3.13"
+authors = [{ name = "Equipo TranSim754 (UNI-FIIS, SI421U 2026-II)" }]
+dependencies = [
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+# Herramientas de desarrollo y oráculo de pruebas (ADR-0011).
+dev = [
+    "pytest>=8.2",
+    "hypothesis>=6.100",
+    "numpy>=2.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pre-commit>=3.7",
+]
+# Interfaz gráfica de escritorio (ADR-0011).
+gui = ["PySide6>=6.7"]
+# Empaquetado del ejecutable final (ADR-0011).
+dist = ["pyinstaller>=6.8"]
+# Adaptador opcional del asistente (ADR-0012). Ollama no requiere paquete extra.
+ai = ["anthropic>=0.34"]
+
+[project.scripts]
+transim = "transim.ui.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/transim"]
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+xfail_strict = true
+# Los marcadores (slow, switch, cached) se registran en tests/conftest.py.
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF", "C4", "PT"]
+# RUF001-003: el español usa caracteres que ruff confunde con ASCII (×, –, etc.).
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["N802", "N806"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+packages = ["transim"]
+warn_unused_configs = true
+check_untyped_defs = true
+ignore_missing_imports = true
+
+# Modo estricto en core/, fpu/ y reference/ (ADR-0011).
+[[tool.mypy.overrides]]
+module = ["transim.core.*", "transim.fpu.*", "transim.reference.*"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+warn_return_any = true
+warn_unused_ignores = true
+no_implicit_reexport = true
+strict_equality = true
+extra_checks = true

@@ -1,0 +1,30 @@
+# Ganchos locales: usan las herramientas del venv del proyecto (make install).
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: .venv/bin/ruff check --force-exclude
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff format --check
+        entry: .venv/bin/ruff format --check --force-exclude
+        language: system
+        types: [python]
+      - id: pytest-rapido
+        name: pruebas rápidas del módulo modificado
+        entry: .venv/bin/python scripts/pruebas_modificadas.py
+        language: system
+        types: [python]
+        pass_filenames: true
+        require_serial: true

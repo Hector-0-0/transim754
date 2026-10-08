@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+*.spec
+
+# Herramientas
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+htmlcov/
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Secretos (ADR-0012: la clave de Anthropic solo por variable de entorno)
+.env
+.env.*
+
+# Salidas generadas por `transim metrics` que no se versionan
+docs/metricas/*.csv.tmp
