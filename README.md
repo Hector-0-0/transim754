@@ -28,8 +28,9 @@ make install
 make demo        # transim calc 1.5 + 2.25 --format binary32 --trace
 ```
 
-> Estado: la base del repositorio está en construcción; `make demo` estará disponible
-> en `v0.1.0-avance`. Hoy funcionan `make install`, `make test` y `transim version`.
+> Estado: `make demo`, `transim run` y `transim asm` funcionan. Mientras una unidad de
+> transistores no esté integrada (FADD/FSUB: issue #17), el resultado proviene del modelo
+> de referencia y la salida lo indica explícitamente.
 
 Requisitos: Python 3.12 y `make`. La GUI necesita además `make install-gui`.
 
