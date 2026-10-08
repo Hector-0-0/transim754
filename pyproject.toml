@@ -41,6 +41,8 @@ packages = ["src/transim"]
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
+# Permite importar ayudas compartidas de las pruebas (p. ej. `from core.circuitos import …`).
+pythonpath = ["tests"]
 addopts = "-ra --strict-markers --import-mode=importlib"
 xfail_strict = true
 # Los marcadores (slow, switch, cached) se registran en tests/conftest.py.
