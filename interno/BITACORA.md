@@ -4,6 +4,36 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-10-08 · F7 — Ensamblador, CLI y propuesta del avance
+
+**Hecho (todo por PR: main está protegida)**
+- PR #34 `feat/cpu-ensamblador` (Closes #29): ensamblador .t754 con errores
+  archivo:línea:columna, literales decimales/fracciones/hex, binario big-endian,
+  desensamblador. Validado con las pruebas escritas en F4 (todas pasan sin cambios).
+- PR #35 `feat/cli-calc` (Refs #31, depende de #34): `transim calc/asm/run`. Si una unidad de
+  transistores no está integrada usa la referencia y lo dice en la salida (ADR-0006).
+  `make demo` funciona.
+- PR #36 `docs/propuesta-avance` (Refs #33): propuesta final; exportada a DOCX (pandoc 3.9 en
+  un entorno desechable) y PDF (LibreOffice): 11 páginas, sin cortes.
+
+**Errores propios detectados y corregidos**
+- La prueba `test_calc_con_traza_y_flags` (escrita en F4) comparaba "0x…" contra la salida en
+  mayúsculas: imposible de pasar. Corregida en #35. Era una de las pruebas no validadas.
+- La guarda de ADR-0001 detectó literales 8 (`WORD_BITS // 8`, `:08X`, ancho de columna).
+  Corregido con `isa.WORD_BYTES` y constantes con nombre. Un push del CLI salió con la suite
+  en rojo porque el `&&` encadenado a `tail` no detuvo el flujo; corregido de inmediato
+  (force-with-lease sobre mi rama). Desde entonces: push solo si `pytest` devuelve 0.
+
+**Pendientes para el avance (lunes 12)**
+- Aprobación de un compañero para #34, #35 y #36 (main exige 1 aprobación).
+- Que los integrantes acepten la invitación → `scripts/asignar_issues.sh`.
+- Celdas (#1–#6), bloques (#7–#13), FADD/FSUB (#15–#17), métricas (#22–#24), investigación y
+  diapositivas (#27, #28).
+- Domingo: integrar FADD/FSUB, actualizar la tabla 11.1 de la propuesta, apellidos de Daniel,
+  Fabricio y Yenny, ensayo; lunes: tag v0.1.0-avance.
+
+---
+
 ## 2026-10-08 · F6 — GitHub (+ F8)
 
 **Hecho**
