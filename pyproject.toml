@@ -41,7 +41,7 @@ packages = ["src/transim"]
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
-addopts = "-ra --strict-markers"
+addopts = "-ra --strict-markers --import-mode=importlib"
 xfail_strict = true
 # Los marcadores (slow, switch, cached) se registran en tests/conftest.py.
 
