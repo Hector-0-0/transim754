@@ -4,13 +4,22 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from transim.cells import combinational
+from transim.cells import combinational, sequential
 from transim.core.netlist import Netlist
 
 CELLS: dict[str, Callable[[], Netlist]] = {
     "INV": combinational.inv,
     "NAND2": combinational.nand2,
     "NOR2": combinational.nor2,
+    "AND2": combinational.and2,
+    "OR2": combinational.or2,
+    "XOR2": combinational.xor2,
+    "XNOR2": combinational.xnor2,
+    "MUX2": combinational.mux2,
+    "HA": combinational.half_adder,
+    "FA": combinational.full_adder,
+    "DLATCH": sequential.d_latch,
+    "DFF": sequential.dff,
 }
 """Nombre de celda → constructor. Cada módulo de celdas registra aquí las suyas."""
 

@@ -61,3 +61,67 @@ def nor2() -> Netlist:
     nl.nmos(a, y, nl.gnd, "na")
     nl.nmos(b, y, nl.gnd, "nb")
     return nl
+
+
+# ----------------------------------------------------------------------------
+# Celdas pendientes (responsable: Jairo). Las firmas, los nombres de celda y los
+# puertos son la interfaz acordada: no se cambian sin ADR.
+# ----------------------------------------------------------------------------
+@cache
+def and2() -> Netlist:
+    """AND2: y = a·b. 6 transistores (NAND2 + INV). Nombre de celda ``"AND2"``."""
+    raise NotImplementedError("pendiente: #1")
+
+
+@cache
+def or2() -> Netlist:
+    """OR2: y = a + b. 6 transistores (NOR2 + INV). Nombre de celda ``"OR2"``."""
+    raise NotImplementedError("pendiente: #1")
+
+
+@cache
+def xor2() -> Netlist:
+    """XOR2: y = a ⊕ b. 12 transistores: CMOS complementario de 8 T con ā y b̄
+    generados por dos inversores internos. Nombre de celda ``"XOR2"``."""
+    raise NotImplementedError("pendiente: #2")
+
+
+@cache
+def xnor2() -> Netlist:
+    """XNOR2: y = ¬(a ⊕ b). 12 transistores, misma estructura que XOR2.
+    Nombre de celda ``"XNOR2"``."""
+    raise NotImplementedError("pendiente: #2")
+
+
+@cache
+def mux2() -> Netlist:
+    """MUX2 restaurador: y = a si s = 0, y = b si s = 1. 12 transistores.
+
+    Estructura (ADR-0008, regla de biblioteca): un INV en cada entrada de datos, dos
+    transmission gates controladas por s y s̄ (s̄ generado por un INV interno) y un INV
+    de salida. Las entradas solo llegan a compuertas y la salida es restaurada.
+    Puertos: entradas ``a``, ``b``, ``s``; salida ``y``. Nombre de celda ``"MUX2"``.
+    """
+    raise NotImplementedError("pendiente: #3")
+
+
+@cache
+def half_adder() -> Netlist:
+    """Medio sumador: s = a ⊕ b, cout = a·b. 18 transistores (XOR2 + AND2).
+
+    Puertos: entradas ``a``, ``b``; salidas ``s``, ``cout``. Nombre de celda ``"HA"``.
+    """
+    raise NotImplementedError("pendiente: #4")
+
+
+@cache
+def full_adder() -> Netlist:
+    """Sumador completo espejo (mirror adder) de 28 transistores (Weste y Harris, 2011).
+
+    Etapa de acarreo espejo (10 T) que produce c̄out, etapa de suma espejo (14 T) que
+    produce s̄, y dos inversores de salida (4 T). Celda primitiva: transistores
+    colocados directamente, sin sub-instancias, para que el motor cached la tabule.
+    Puertos: entradas ``a``, ``b``, ``cin``; salidas ``s``, ``cout``.
+    Nombre de celda ``"FA"``.
+    """
+    raise NotImplementedError("pendiente: #4")
