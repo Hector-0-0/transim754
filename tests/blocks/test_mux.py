@@ -6,12 +6,9 @@ import random
 
 import pytest
 
-from pendientes import pendiente
 from transim.blocks.mux import mux2_bus, mux_n
 from transim.core import HardwareUnit
 from transim.metrics.count import count_by_cell
-
-pytestmark = pendiente(10)
 
 
 def test_mux2_bus() -> None:

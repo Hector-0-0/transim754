@@ -1,7 +1,9 @@
-"""Comparador de magnitud sin signo (capa L2, responsable: Ronald). ADR-0009."""
+"""Comparador de magnitud sin signo (capa L2). ADR-0009."""
 
 from __future__ import annotations
 
+from transim.blocks._wiring import Wiring
+from transim.blocks.subtractor import adder_subtractor
 from transim.core.netlist import Netlist
 
 
@@ -14,4 +16,18 @@ def magnitude_comparator(width: int) -> Netlist:
     Puertos: buses ``a[width]``, ``b[width]``; salidas ``lt``, ``eq``, ``gt``.
     Nombre del netlist ``f"CMP{width}"``.
     """
-    raise NotImplementedError("pendiente: #9")
+    nl = Netlist(f"CMP{width}")
+    a, b = nl.input_bus("a", width), nl.input_bus("b", width)
+    lt, eq, gt = nl.output("lt"), nl.output("eq"), nl.output("gt")
+    diff = [nl.node(f"d{i}") for i in range(width)]
+    no_borrow = nl.node("no_borrow")
+    nl.instantiate(
+        adder_subtractor(width),
+        "sub",
+        {"a": a, "b": b, "sub": nl.vdd, "s": diff, "cout": no_borrow},
+    )
+    w = Wiring(nl)
+    w.inv(no_borrow, lt)
+    w.inv(w.or_tree(diff), eq)
+    w.nor2(lt, eq, gt)
+    return nl

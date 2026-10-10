@@ -6,11 +6,8 @@ import random
 
 import pytest
 
-from pendientes import pendiente
 from transim.alu.int_alu import OP_ADD, OP_SUB, IntALU, int_alu
 from transim.reference.integer import int_add, int_sub
-
-pytestmark = pendiente(13)
 
 BORDE = [0, 1, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFF, 0x80000001, 0x55555555]
 

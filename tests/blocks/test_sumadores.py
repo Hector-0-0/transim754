@@ -8,15 +8,14 @@ from collections.abc import Callable
 
 import pytest
 
-from pendientes import pendiente
 from transim.blocks.adders import carry_lookahead_adder, ripple_carry_adder
 from transim.core import HardwareUnit, Netlist
 from transim.metrics.count import count_by_cell
 from transim.reference.blocks import adder
 
 SUMADORES = [
-    pytest.param(ripple_carry_adder, marks=pendiente(7), id="rca"),
-    pytest.param(carry_lookahead_adder, marks=pendiente(14), id="cla"),
+    pytest.param(ripple_carry_adder, id="rca"),
+    pytest.param(carry_lookahead_adder, id="cla"),
 ]
 
 
@@ -45,7 +44,6 @@ def test_aleatorio_anchos_grandes(construir: Callable[[int], Netlist], ancho: in
         assert (out["s"], out["cout"]) == adder(a, b, cin, ancho), (a, b, cin)
 
 
-@pendiente(7)
 def test_rca_usa_un_sumador_completo_por_bit() -> None:
     nl = ripple_carry_adder(8)
     assert nl.name == "RCA8"
@@ -53,7 +51,6 @@ def test_rca_usa_un_sumador_completo_por_bit() -> None:
     assert nl.transistor_count()["total"] == 8 * 28
 
 
-@pendiente(14)
 def test_cla_mismos_puertos_que_rca() -> None:
     nl = carry_lookahead_adder(8)
     assert nl.name == "CLA8"
