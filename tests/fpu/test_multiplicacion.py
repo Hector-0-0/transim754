@@ -8,7 +8,6 @@ import random
 import pytest
 
 from fpu.comun import comparar, pares_aceptacion, pares_rapidos
-from pendientes import pendiente
 from transim.core import HardwareUnit
 from transim.fpu.format import BINARY16, BINARY32, FloatFormat
 from transim.fpu.mul import FPMul, array_multiplier
@@ -17,7 +16,6 @@ from transim.metrics.count import count_by_cell
 FORMATOS = pytest.mark.parametrize("fmt", [BINARY16, BINARY32], ids=lambda f: f.name)
 
 
-@pendiente(18)
 @pytest.mark.switch
 @pytest.mark.parametrize("ancho", [1, 2, 3, 4])
 def test_arreglo_exhaustivo(ancho: int) -> None:
@@ -26,7 +24,6 @@ def test_arreglo_exhaustivo(ancho: int) -> None:
         assert u.evaluate({"a": a, "b": b})["p"] == a * b, (a, b)
 
 
-@pendiente(18)
 @pytest.mark.cached
 @pytest.mark.parametrize("ancho", [11, 24])
 def test_arreglo_anchos_de_mantisa(ancho: int) -> None:
@@ -42,7 +39,6 @@ def test_arreglo_anchos_de_mantisa(ancho: int) -> None:
         assert u.evaluate({"a": a, "b": b})["p"] == a * b
 
 
-@pendiente(19)
 @pytest.mark.cached
 def test_ejemplos_de_docs_03() -> None:
     u = FPMul(BINARY32)
@@ -54,14 +50,12 @@ def test_ejemplos_de_docs_03() -> None:
     assert r.flags.overflow
 
 
-@pendiente(19)
 @pytest.mark.cached
 @FORMATOS
 def test_rapido(fmt: FloatFormat) -> None:
     comparar(fmt, "*", FPMul(fmt).mul, pares_rapidos(fmt))
 
 
-@pendiente(19)
 @pytest.mark.slow
 @FORMATOS
 def test_aceptacion(fmt: FloatFormat) -> None:
