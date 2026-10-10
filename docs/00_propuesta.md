@@ -253,18 +253,24 @@ produce la herramienta de métricas del proyecto):
 | Motor acelerado | Terminado | mismo estado y conteos que el motor exacto en 300 secuencias de un circuito mixto y 1 500 circuitos aleatorios; 4,4 veces más rápido en un sumador de 16 bits |
 | Modelo de referencia de la FPU | Terminado | 331 552 operaciones en binary32 y binary16 sin discrepancias de valor frente al hardware; sin discrepancias de indicadores en binary32 |
 | Diseño de los datapaths FADD/FSUB, FMUL, FDIV | Verificado | 176 928 operaciones con un modelo que sigue paso a paso el diseño, sin discrepancias |
-| Celdas semilla INV, NAND2, NOR2 | Terminadas | tablas exhaustivas; 2, 4 y 4 transistores |
+| Biblioteca de celdas L1 | Terminada | 12 celdas con tablas de verdad exhaustivas; mismo resultado en ambos motores; registro de N bits con flip-flops |
+| Bloques aritméticos L2 y ALU entera | Terminados | RCA, CLA, restador, comparador, multiplexores, desplazador con sticky y LZC; ALU de 32 bits con C, V, Z y N contra la referencia |
+| FPU en transistores: FADD, FSUB, FMUL, FDIV | Terminada | en binary32 y binary16, todos los pares de casos borde y 10 000 pares aleatorios por operación, sin discrepancias de bits ni de indicadores; 13 974, 29 966 y 40 048 transistores en binary32 |
+| Máquina T754 | Terminada | decodificador de compuertas, banco de ocho registros de flip-flops y control; mismo estado final que el modelo de referencia en todos los programas de prueba |
 | ISA T754 y ensamblador | Terminados | cuatro programas de ejemplo; errores con línea y columna |
-| Interfaz de línea de comandos | Funcional | `transim calc` y `transim run` con los bits de cada operando y del resultado |
-| Pruebas automáticas | En curso | más de 230 pruebas en verde y más de 130 escritas por adelantado para los módulos en desarrollo |
+| Interfaz de línea de comandos e interfaz gráfica | Terminadas | `transim calc`, `asm`, `run`, `metrics` y `gui`, con los bits de cada operando, las etapas y los indicadores |
+| Métricas | Terminadas | transistores, actividad α y profundidad del camino crítico de 31 módulos (`docs/metricas/`) |
+| Investigación sobre transistores en las CPU | Terminada | `docs/investigacion/transistores_en_cpus.md` |
+| Pruebas automáticas | Terminadas | 377 pruebas, sin marcadores pendientes |
 
-### 11.2 Trabajo en curso para la demostración
+### 11.2 Demostración y trabajo siguiente
 
-La demostración del avance ejecuta `1.5 + 2.25` en binary32 sobre la unidad FADD de
-transistores y muestra los bits de cada etapa, el resultado `0x40700000` y la cantidad de
-transistores que intervinieron. Las celdas de la biblioteca, los bloques aritméticos y la
-unidad FADD/FSUB se integran con la verificación descrita en la sección 7. La
-multiplicación, la división y la máquina completa corresponden a la versión 0.5.0.
+La demostración ejecuta `1.5 + 2.25` en binary32 sobre la unidad FADD de transistores y
+muestra los bits de cada etapa, el resultado `0x40700000` y los 13 974 transistores de la
+unidad; luego divide `1 / 3` (`0x3EAAAAAB`, inexacto) y ejecuta un programa `.t754` en la
+máquina T754 desde la interfaz gráfica. El trabajo siguiente lleva el control de la
+máquina a compuertas y flip-flops y reduce la profundidad del divisor, que hoy es el
+camino crítico más largo (852 celdas).
 
 ## Referencias
 
