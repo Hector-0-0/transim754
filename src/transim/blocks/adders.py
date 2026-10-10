@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from transim.blocks._wiring import Wiring
+from transim.blocks.wiring import Wiring
 from transim.cells.combinational import full_adder
 from transim.core.netlist import Netlist
 from transim.core.node import Node

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from transim.blocks._wiring import Wiring
+from transim.blocks.wiring import Wiring
 from transim.core.netlist import Netlist
 from transim.core.node import Node
 

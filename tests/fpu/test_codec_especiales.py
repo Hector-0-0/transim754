@@ -7,14 +7,12 @@ import itertools
 import pytest
 
 from oracle.cases import edge_values
-from pendientes import pendiente
 from transim.core import HardwareUnit
 from transim.fpu.codec import unpacker
 from transim.fpu.format import BINARY16, BINARY32, FloatFormat, FPClass
 from transim.fpu.special import classifier, special_cases
 from transim.reference import fpu as ref
 
-pytestmark = pendiente(15)
 FORMATOS = pytest.mark.parametrize("fmt", [BINARY16, BINARY32], ids=lambda f: f.name)
 SALIDAS_CLASE = ["zero", "subnormal", "normal", "inf", "qnan", "snan"]
 

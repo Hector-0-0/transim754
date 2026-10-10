@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from transim.blocks._wiring import Wiring, ripple_chain
+from transim.blocks.wiring import Wiring, ripple_chain
 from transim.core.netlist import Netlist
 
 
