@@ -1,11 +1,13 @@
-"""Actividad de conmutación por operación (responsable: Yenny). ADR-0013."""
+"""Actividad de conmutación por operación. ADR-0013."""
 
 from __future__ import annotations
 
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from transim.core.engine_switch import InputValue, SwitchEngine
+from transim.core.node import NodeKind
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,4 +39,20 @@ def measure_activity(
     Raises:
         ValueError: si ``stimuli`` está vacío.
     """
-    raise NotImplementedError("pendiente: #22")
+    if not stimuli:
+        raise ValueError("measure_activity: la lista de estímulos está vacía")
+    nodes = sum(1 for n in engine.netlist.nodes if n.kind is NodeKind.INTERNAL)
+    engine.reset_counters()
+    start = time.perf_counter()
+    for stimulus in stimuli:
+        engine.set_inputs(stimulus)
+    seconds = time.perf_counter() - start
+    stats = engine.stats()
+    return ActivityReport(
+        operations=len(stimuli),
+        nodes=nodes,
+        node_toggles=stats.node_toggles,
+        transistor_events=stats.transistor_events,
+        alpha=stats.node_toggles / (nodes * len(stimuli)) if nodes else 0.0,
+        seconds=seconds,
+    )

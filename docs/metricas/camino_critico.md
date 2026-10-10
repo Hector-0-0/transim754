@@ -1,0 +1,33 @@
+# Profundidad del camino crítico (celdas primitivas)
+
+| modulo | profundidad |
+|---|---|
+| INV | 0 |
+| NAND2 | 0 |
+| NOR2 | 0 |
+| AND2 | 0 |
+| OR2 | 0 |
+| XOR2 | 0 |
+| XNOR2 | 0 |
+| MUX2 | 0 |
+| HA | 1 |
+| FA | 0 |
+| RCA32 | 32 |
+| CLA32 | 19 |
+| ADDSUB32 | 35 |
+| CMP32 | 40 |
+| MUX8x32 | 3 |
+| SHR27 | 12 |
+| LZC28 | 8 |
+| ALU32 | 39 |
+| DECODER | 12 |
+| ROUND_binary16 | 51 |
+| FADDSUB_binary16 | 120 |
+| FMUL_binary16 | 96 |
+| FDIV_binary16 | 275 |
+| ROUND_binary32 | 72 |
+| FADDSUB_binary32 | 176 |
+| FMUL_binary32 | 157 |
+| FDIV_binary32 | 852 |
+
+> Las celdas secuenciales cortan el camino; los módulos secuenciales se omiten.

@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from cpu.programas import PROGRAMAS
-from pendientes import pendiente
 from transim.core import HardwareUnit, SwitchEngine
 from transim.cpu import isa
 from transim.cpu.control import ControlFSM, Phase
@@ -15,7 +14,6 @@ from transim.cpu.machine import Machine
 from transim.cpu.registers import register_file
 from transim.reference.machine import run
 
-pytestmark = pendiente(30)
 SALIDAS_OPCODE = [op.name.lower() for op in Opcode]
 
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from pendientes import pendiente
 from transim.cells.combinational import inv, nand2
 from transim.core import Netlist, SwitchEngine
 from transim.metrics.activity import measure_activity
@@ -20,7 +19,6 @@ def cadena_de_inversores(n: int) -> Netlist:
     return nl
 
 
-@pendiente(22)
 def test_actividad_de_una_cadena() -> None:
     nl = cadena_de_inversores(5)
     motor = SwitchEngine(nl)
@@ -34,13 +32,11 @@ def test_actividad_de_una_cadena() -> None:
     assert reporte.seconds >= 0
 
 
-@pendiente(22)
 def test_actividad_sin_estimulos() -> None:
     with pytest.raises(ValueError, match="vac"):
         measure_activity(SwitchEngine(cadena_de_inversores(1)), [])
 
 
-@pendiente(23)
 @pytest.mark.parametrize("n", [1, 4, 9])
 def test_profundidad_de_una_cadena(n: int) -> None:
     nl = cadena_de_inversores(n)
@@ -48,7 +44,6 @@ def test_profundidad_de_una_cadena(n: int) -> None:
     assert critical_path(nl) == [f"i{i}" for i in range(n)]
 
 
-@pendiente(23)
 def test_profundidad_toma_el_camino_mas_largo() -> None:
     nl = Netlist("ramas")
     a, b = nl.input("a"), nl.input("b")
@@ -61,7 +56,6 @@ def test_profundidad_toma_el_camino_mas_largo() -> None:
     assert critical_path(nl)[-1] == "final"
 
 
-@pendiente(23)
 def test_profundidad_cuenta_celdas_primitivas_en_jerarquia() -> None:
     sub = cadena_de_inversores(3)
     top = Netlist("top")
