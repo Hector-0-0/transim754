@@ -32,7 +32,7 @@ CELDAS: list[
 
 
 # Issues aún pendientes en esta tabla. Al terminar uno, quite su número del conjunto.
-PENDIENTES: set[int] = {4}
+PENDIENTES: set[int] = set()
 
 
 def _parametros(celdas: list) -> list:  # type: ignore[type-arg]
@@ -74,7 +74,6 @@ def test_equivalencia_switch_cached(celda, issue, ent, sal, fn, n) -> None:  # t
     equivalencia_motores(celda(), ent)
 
 
-@pendiente(4)
 def test_sumador_completo_es_celda_primitiva() -> None:
     """El FA espejo se construye con transistores, no con sub-instancias, para que el
     motor cached lo tabule como una sola celda."""

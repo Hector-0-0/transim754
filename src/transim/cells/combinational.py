@@ -209,8 +209,16 @@ def half_adder() -> Netlist:
     """Medio sumador: s = a ⊕ b, cout = a·b. 18 transistores (XOR2 + AND2).
 
     Puertos: entradas ``a``, ``b``; salidas ``s``, ``cout``. Nombre de celda ``"HA"``.
+
+    Se compone instanciando las celdas ya probadas: ``u_xor`` (XOR2) produce la suma y
+    ``u_and`` (AND2) el acarreo. Ambas reciben ``a`` y ``b`` solo en compuertas.
     """
-    raise NotImplementedError("pendiente: #4")
+    nl = Netlist("HA")
+    a, b = nl.input("a"), nl.input("b")
+    s, cout = nl.output("s"), nl.output("cout")
+    nl.instantiate(xor2(), "u_xor", {"a": a, "b": b, "y": s})
+    nl.instantiate(and2(), "u_and", {"a": a, "b": b, "y": cout})
+    return nl
 
 
 @cache
@@ -222,5 +230,59 @@ def full_adder() -> Netlist:
     colocados directamente, sin sub-instancias, para que el motor cached la tabule.
     Puertos: entradas ``a``, ``b``, ``cin``; salidas ``s``, ``cout``.
     Nombre de celda ``"FA"``.
+
+    - Acarreo (10 T), nodo ``cout_n`` = ¬(a·b + cin·(a + b)). Pull-down:
+      (``na1`` serie ``nb1``) ∥ (``nc1`` serie (``na2`` ∥ ``nb2``)); pull-up con la misma
+      topología (``pa1``…``pb2``). Sirve la misma topología arriba y abajo porque la
+      mayoría es autodual: ¬M(a, b, c) = M(ā, b̄, c̄).
+    - Suma (14 T), nodo ``s_n`` = ¬(a·b·cin + cout_n·(a + b + cin)). Pull-down:
+      (``na3`` serie ``nb3`` serie ``nc3``) ∥ (``nco`` serie (``na4`` ∥ ``nb4`` ∥ ``nc4``));
+      pull-up espejo. ``cout_n`` vale 1 justo cuando hay a lo sumo un 1 en las entradas,
+      así que el segundo término cubre el caso "exactamente un 1" y el primero "tres 1".
+    - Inversores de salida (4 T): s = ¬s_n, cout = ¬cout_n.
     """
-    raise NotImplementedError("pendiente: #4")
+    nl = Netlist("FA")
+    a, b, c = nl.input("a"), nl.input("b"), nl.input("cin")
+    s, cout = nl.output("s"), nl.output("cout")
+    vdd, gnd = nl.vdd, nl.gnd
+
+    # Etapa de acarreo espejo -> cout_n
+    cout_n = nl.node("cout_n")
+    x1, x2 = nl.node("x1"), nl.node("x2")
+    nl.nmos(a, cout_n, x1, "na1")
+    nl.nmos(b, x1, gnd, "nb1")
+    nl.nmos(c, cout_n, x2, "nc1")
+    nl.nmos(a, x2, gnd, "na2")
+    nl.nmos(b, x2, gnd, "nb2")
+    y1, y2 = nl.node("y1"), nl.node("y2")
+    nl.pmos(a, cout_n, y1, "pa1")
+    nl.pmos(b, y1, vdd, "pb1")
+    nl.pmos(c, cout_n, y2, "pc1")
+    nl.pmos(a, y2, vdd, "pa2")
+    nl.pmos(b, y2, vdd, "pb2")
+
+    # Etapa de suma espejo -> s_n
+    s_n = nl.node("s_n")
+    x3, x4, x5 = nl.node("x3"), nl.node("x4"), nl.node("x5")
+    nl.nmos(a, s_n, x3, "na3")
+    nl.nmos(b, x3, x4, "nb3")
+    nl.nmos(c, x4, gnd, "nc3")
+    nl.nmos(cout_n, s_n, x5, "nco")
+    nl.nmos(a, x5, gnd, "na4")
+    nl.nmos(b, x5, gnd, "nb4")
+    nl.nmos(c, x5, gnd, "nc4")
+    y3, y4, y5 = nl.node("y3"), nl.node("y4"), nl.node("y5")
+    nl.pmos(a, s_n, y3, "pa3")
+    nl.pmos(b, y3, y4, "pb3")
+    nl.pmos(c, y4, vdd, "pc3")
+    nl.pmos(cout_n, s_n, y5, "pco")
+    nl.pmos(a, y5, vdd, "pa4")
+    nl.pmos(b, y5, vdd, "pb4")
+    nl.pmos(c, y5, vdd, "pc4")
+
+    # Inversores de salida
+    nl.pmos(s_n, vdd, s, "ps")
+    nl.nmos(s_n, s, gnd, "ns")
+    nl.pmos(cout_n, vdd, cout, "pcout")
+    nl.nmos(cout_n, cout, gnd, "ncout")
+    return nl
