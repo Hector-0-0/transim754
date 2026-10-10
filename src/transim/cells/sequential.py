@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from functools import cache
 
+from transim.cells.combinational import mux2
 from transim.core.netlist import Netlist
 
 
@@ -81,5 +82,18 @@ def register(width: int) -> Netlist:
     Cada bit es un DFF cuya entrada es ``en ? d[i] : q[i]`` (MUX2 de realimentación).
     Puertos: bus de entrada ``d[width]``, entradas ``clk`` y ``en``; bus de salida
     ``q[width]``. Nombre de celda ``f"REG{width}"``.
+
+    Por bit, ``u_mux{i}`` (MUX2, a = q[i], b = d[i], s = en) elige entre conservar y
+    cargar, y ``u_ff{i}`` (DFF) lo captura en el flanco de subida. Total:
+    ``width`` · (12 + 26) transistores. La habilitación se hace con datos y no
+    bloqueando el reloj, para que todos los DFF vean el mismo flanco.
     """
-    raise NotImplementedError("pendiente: #6")
+    nl = Netlist(f"REG{width}", sequential=True)
+    d = nl.input_bus("d", width)
+    clk, en = nl.input("clk"), nl.input("en")
+    q = nl.output_bus("q", width)
+    for i in range(width):
+        nxt = nl.node(f"nxt{i}")
+        nl.instantiate(mux2(), f"u_mux{i}", {"a": q[i], "b": d[i], "s": en, "y": nxt})
+        nl.instantiate(dff(), f"u_ff{i}", {"d": nxt, "clk": clk, "q": q[i]})
+    return nl

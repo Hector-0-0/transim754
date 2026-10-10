@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from pendientes import pendiente
 from transim.cells import sequential as seq
 from transim.core import Logic, SwitchEngine
 
@@ -55,7 +54,6 @@ def test_flip_flop_estable_ante_muchos_ciclos() -> None:
         sim.set_inputs({"clk": 0})
 
 
-@pendiente(6)
 @pytest.mark.parametrize("ancho", [1, 4, 8])
 def test_registro_con_habilitacion(ancho: int) -> None:
     nl = seq.register(ancho)
