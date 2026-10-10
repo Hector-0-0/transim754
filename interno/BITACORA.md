@@ -4,6 +4,34 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-10-10 · Implementación completa y avance v0.1.0
+
+**Hecho**
+- Por decisión del líder técnico, con permiso del docente, todo el desarrollo queda a
+  cargo de Héctor. Se eliminaron las ramas `feat/cells-*` con otra autoría, se corrigió la
+  identidad git local y `main` deja de exigir aprobación (el CI sigue obligatorio).
+- PR #34–#36 integrados. PR #43 celdas (#1–#6), #44 bloques y ALU (#7–#14), #45 FPU
+  (#15–#21), #46 máquina, métricas, asistente, GUI, investigación y diapositivas
+  (#22–#28, #30, #32).
+- Aceptación larga: FADD/FSUB, FMUL, FDIV y redondeo en binary32 y binary16, y el
+  clasificador exhaustivo de binary16, sin discrepancias.
+- Transistores (binary32): FADD/FSUB 13 974, FMUL 29 966, FDIV 40 048; máquina completa
+  ≈ 100 600.
+
+**Errores propios detectados y corregidos**
+- `validar.py` contaba el ejemplo `@pendiente(7)` del docstring de `tests/pendientes.py`.
+- La primera medición de actividad de una unidad nueva daba 0 (los nodos parten en X); la
+  GUI evalúa `0 op 0` al crear cada unidad.
+- Las señales de un `QRunnable` conectadas a una lambda se perdían; ahora se conectan a
+  métodos de la pestaña.
+- `report.py` tenía los literales 8 y 32; la guarda de ADR-0001 lo detectó.
+
+**Siguiente**
+- Presentación del lunes 12; después, control en compuertas (v0.5.0) y reducir la
+  profundidad del divisor (852 celdas).
+
+---
+
 ## 2026-10-08 · F7 — Ensamblador, CLI y propuesta del avance
 
 **Hecho (todo por PR: main está protegida)**
