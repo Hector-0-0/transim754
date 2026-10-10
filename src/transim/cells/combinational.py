@@ -17,6 +17,7 @@ from __future__ import annotations
 from functools import cache
 
 from transim.core.netlist import Netlist
+from transim.core.node import Node
 
 
 @cache
@@ -98,18 +99,75 @@ def or2() -> Netlist:
     return nl
 
 
+def _inversores_de_entrada(nl: Netlist, a: Node, b: Node) -> tuple[Node, Node]:
+    """Coloca dos inversores (4 T) que generan ``an`` = ¬a y ``bn`` = ¬b dentro de ``nl``.
+
+    Se colocan como transistores, no como instancias, para que la celda que los usa
+    siga siendo primitiva y el motor cached la tabule entera.
+    """
+    an, bn = nl.node("an"), nl.node("bn")
+    nl.pmos(a, nl.vdd, an, "pia")
+    nl.nmos(a, an, nl.gnd, "nia")
+    nl.pmos(b, nl.vdd, bn, "pib")
+    nl.nmos(b, bn, nl.gnd, "nib")
+    return an, bn
+
+
 @cache
 def xor2() -> Netlist:
     """XOR2: y = a ⊕ b. 12 transistores: CMOS complementario de 8 T con ā y b̄
-    generados por dos inversores internos. Nombre de celda ``"XOR2"``."""
-    raise NotImplementedError("pendiente: #2")
+    generados por dos inversores internos. Nombre de celda ``"XOR2"``.
+
+    Celda primitiva (transistores colocados directamente):
+
+    - Inversores de entrada (4 T): ``an`` = ¬a, ``bn`` = ¬b.
+    - Pull-down (4 nMOS), conduce cuando y = 0, es decir con a·b + ā·b̄:
+      (``na`` serie ``nb``) ∥ (``nan`` serie ``nbn``), nodos intermedios ``n1``, ``n2``.
+    - Pull-up (4 pMOS), la dual: (``pa`` ∥ ``pb``) serie (``pan`` ∥ ``pbn``), nodo
+      intermedio ``p1``; conduce con (ā + b̄)·(a + b) = a ⊕ b.
+    """
+    nl = Netlist("XOR2")
+    a, b, y = nl.input("a"), nl.input("b"), nl.output("y")
+    an, bn = _inversores_de_entrada(nl, a, b)
+    p1 = nl.node("p1")
+    nl.pmos(a, nl.vdd, p1, "pa")
+    nl.pmos(b, nl.vdd, p1, "pb")
+    nl.pmos(an, p1, y, "pan")
+    nl.pmos(bn, p1, y, "pbn")
+    n1, n2 = nl.node("n1"), nl.node("n2")
+    nl.nmos(a, y, n1, "na")
+    nl.nmos(b, n1, nl.gnd, "nb")
+    nl.nmos(an, y, n2, "nan")
+    nl.nmos(bn, n2, nl.gnd, "nbn")
+    return nl
 
 
 @cache
 def xnor2() -> Netlist:
     """XNOR2: y = ¬(a ⊕ b). 12 transistores, misma estructura que XOR2.
-    Nombre de celda ``"XNOR2"``."""
-    raise NotImplementedError("pendiente: #2")
+    Nombre de celda ``"XNOR2"``.
+
+    Igual que XOR2 pero con los complementos cruzados en cada rama:
+
+    - Pull-down, conduce cuando y = 0, es decir con a·b̄ + ā·b:
+      (``na`` serie ``nbn``) ∥ (``nan`` serie ``nb``).
+    - Pull-up: (``pa`` ∥ ``pbn``) serie (``pan`` ∥ ``pb``); conduce con
+      (ā + b)·(a + b̄) = ¬(a ⊕ b).
+    """
+    nl = Netlist("XNOR2")
+    a, b, y = nl.input("a"), nl.input("b"), nl.output("y")
+    an, bn = _inversores_de_entrada(nl, a, b)
+    p1 = nl.node("p1")
+    nl.pmos(a, nl.vdd, p1, "pa")
+    nl.pmos(bn, nl.vdd, p1, "pbn")
+    nl.pmos(an, p1, y, "pan")
+    nl.pmos(b, p1, y, "pb")
+    n1, n2 = nl.node("n1"), nl.node("n2")
+    nl.nmos(a, y, n1, "na")
+    nl.nmos(bn, n1, nl.gnd, "nbn")
+    nl.nmos(an, y, n2, "nan")
+    nl.nmos(b, n2, nl.gnd, "nb")
+    return nl
 
 
 @cache

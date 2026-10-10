@@ -32,7 +32,7 @@ CELDAS: list[
 
 
 # Issues aún pendientes en esta tabla. Al terminar uno, quite su número del conjunto.
-PENDIENTES: set[int] = {2, 3, 4}
+PENDIENTES: set[int] = {3, 4}
 
 
 def _parametros(celdas: list) -> list:  # type: ignore[type-arg]
