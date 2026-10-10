@@ -178,8 +178,30 @@ def mux2() -> Netlist:
     transmission gates controladas por s y s̄ (s̄ generado por un INV interno) y un INV
     de salida. Las entradas solo llegan a compuertas y la salida es restaurada.
     Puertos: entradas ``a``, ``b``, ``s``; salida ``y``. Nombre de celda ``"MUX2"``.
+
+    Celda primitiva, en cuatro partes:
+
+    - INV de datos (4 T): ``an`` = ¬a, ``bn`` = ¬b. Aíslan a ``a`` y ``b`` del canal de
+      las TG (regla 1).
+    - INV de selección (2 T): ``sn`` = ¬s.
+    - TG (4 T): ``tg0`` une ``an`` con ``m`` cuando s = 0 (nMOS con ``sn``, pMOS con
+      ``s``); ``tg1`` une ``bn`` con ``m`` cuando s = 1. Siempre conduce exactamente una.
+    - INV de salida (2 T): y = ¬m. Deshace la inversión de los datos y restaura el nivel
+      (regla 2), de modo que encadenar MUX2 no acumula TG en serie.
     """
-    raise NotImplementedError("pendiente: #3")
+    nl = Netlist("MUX2")
+    a, b, s = nl.input("a"), nl.input("b"), nl.input("s")
+    y = nl.output("y")
+    an, bn = _inversores_de_entrada(nl, a, b)
+    sn = nl.node("sn")
+    nl.pmos(s, nl.vdd, sn, "pis")
+    nl.nmos(s, sn, nl.gnd, "nis")
+    m = nl.node("m")
+    nl.transmission_gate(an, m, enable=sn, enable_n=s, name="tg0")
+    nl.transmission_gate(bn, m, enable=s, enable_n=sn, name="tg1")
+    nl.pmos(m, nl.vdd, y, "po")
+    nl.nmos(m, y, nl.gnd, "no")
+    return nl
 
 
 @cache

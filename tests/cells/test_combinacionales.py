@@ -32,7 +32,7 @@ CELDAS: list[
 
 
 # Issues aún pendientes en esta tabla. Al terminar uno, quite su número del conjunto.
-PENDIENTES: set[int] = {3, 4}
+PENDIENTES: set[int] = {4}
 
 
 def _parametros(celdas: list) -> list:  # type: ignore[type-arg]
@@ -83,6 +83,5 @@ def test_sumador_completo_es_celda_primitiva() -> None:
     assert not nl.instances
 
 
-@pendiente(3)
 def test_mux2_nombre() -> None:
     assert c.mux2().name == "MUX2"
