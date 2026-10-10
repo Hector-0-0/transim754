@@ -25,7 +25,6 @@ def test_null_cumple_el_puerto() -> None:
     assert all(0 <= x < 2**32 and 0 <= y < 2**32 for x, y in pares)
 
 
-@pendiente(29)
 def test_programa_del_null_ensambla() -> None:
     from transim.cpu.assembler import assemble
 

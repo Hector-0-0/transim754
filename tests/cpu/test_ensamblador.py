@@ -5,10 +5,7 @@ from __future__ import annotations
 import pytest
 
 from cpu.programas import EJEMPLOS, PROGRAMAS
-from pendientes import pendiente
 from transim.cpu.assembler import AssemblyError, assemble, disassemble, from_bytes, to_bytes
-
-pytestmark = pendiente(29)
 
 
 @pytest.mark.parametrize("nombre", sorted(PROGRAMAS))

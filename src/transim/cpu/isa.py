@@ -17,6 +17,9 @@ from enum import IntEnum
 WORD_BITS = 32
 """Ancho de palabra de la máquina y de los registros F0–F7."""
 
+WORD_BYTES = WORD_BITS // 8
+"""Bytes por palabra en el binario ensamblado."""
+
 N_REGS = 8
 """Número de registros F0–F7."""
 
