@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from transim.blocks._wiring import Wiring
 from transim.blocks.subtractor import adder_subtractor
+from transim.blocks.wiring import Wiring
 from transim.core.netlist import Netlist
 
 

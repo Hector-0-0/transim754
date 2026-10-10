@@ -1,4 +1,4 @@
-"""Ayudas internas para cablear celdas dentro de un netlist (capa L2).
+"""Ayudas para cablear celdas dentro de un netlist (capas L2 y L3).
 
 Cada función instancia celdas de la biblioteca L1 con nombres únicos y devuelve el
 nodo de salida, de modo que los bloques se escriben como expresiones lógicas.
@@ -33,6 +33,14 @@ class Wiring:
     def inv(self, a: Node, out: Node | None = None) -> Node:
         """¬a."""
         return self._cell(cells.inv(), "inv", {"a": a}, out)
+
+    def buf(self, a: Node, out: Node | None = None) -> Node:
+        """Copia restaurada de ``a`` (dos inversores)."""
+        return self.inv(self.inv(a), out)
+
+    def const(self, value: int, out: Node | None = None) -> Node:
+        """Salida manejada con el valor constante ``value`` (inversor desde un riel)."""
+        return self.inv(self.nl.gnd if value else self.nl.vdd, out)
 
     def and2(self, a: Node, b: Node, out: Node | None = None) -> Node:
         """a·b."""
@@ -82,6 +90,16 @@ class Wiring:
         return nodes[0]
 
 
+def ripple_add(
+    w: Wiring, a: Sequence[Node], b: Sequence[Node], cin: Node
+) -> tuple[list[Node], Node]:
+    """Suma ``a + b + cin`` con una cadena de FA. Devuelve (suma, acarreo de salida)."""
+    tag = w._name("sum")
+    s = [w.nl.node(f"{tag}_{i}") for i in range(len(a))]
+    carries = ripple_chain(w, a, b, cin, s)
+    return s, carries[-1]
+
+
 def ripple_chain(
     w: Wiring, a: Sequence[Node], b: Sequence[Node], cin: Node, s: Sequence[Node]
 ) -> list[Node]:
@@ -90,3 +108,8 @@ def ripple_chain(
     for i in range(len(a)):
         carries.append(w.full_adder(a[i], b[i], carries[i], s[i]))
     return carries
+
+
+def constant_bus(nl: Netlist, value: int, width: int) -> list[Node]:
+    """Constante ``value`` en complemento a 2 de ``width`` bits, tomada de los rieles."""
+    return [nl.vdd if (value >> i) & 1 else nl.gnd for i in range(width)]

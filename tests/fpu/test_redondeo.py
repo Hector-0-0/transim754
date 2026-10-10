@@ -10,7 +10,6 @@ import random
 import pytest
 
 from oracle.compare import assert_fp_equal
-from pendientes import pendiente
 from transim.core import HardwareUnit
 from transim.fpu.format import BINARY16, BINARY32, FloatFormat, FPResult
 from transim.fpu.rounding import exponent_width, round_and_pack
@@ -56,14 +55,12 @@ def _verificar(fmt: FloatFormat, u: HardwareUnit, casos) -> None:  # type: ignor
         assert_fp_equal(fmt, FPResult.from_outputs(out), esperado, f"{(sign, e, m, g, r, s)}")
 
 
-@pendiente(16)
 @pytest.mark.cached
 @FORMATOS
 def test_contra_la_referencia(fmt: FloatFormat) -> None:
     _verificar(fmt, HardwareUnit(round_and_pack(fmt), "cached"), _casos(fmt, 300, 16))
 
 
-@pendiente(16)
 @pytest.mark.slow
 @FORMATOS
 def test_contra_la_referencia_10000(fmt: FloatFormat) -> None:
