@@ -28,9 +28,8 @@ make install
 make demo        # transim calc 1.5 + 2.25 --format binary32 --trace
 ```
 
-> Estado: `make demo`, `transim run` y `transim asm` funcionan. Mientras una unidad de
-> transistores no esté integrada (FADD/FSUB: issue #17), el resultado proviene del modelo
-> de referencia y la salida lo indica explícitamente.
+> Estado (v0.1.0-avance): FADD, FSUB, FMUL y FDIV se calculan en transistores en binary32
+> y binary16; `transim calc`, `asm`, `run`, `metrics` y `gui` funcionan.
 
 Requisitos: Python 3.12 y `make`. La GUI necesita además `make install-gui`.
 
