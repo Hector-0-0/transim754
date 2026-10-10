@@ -5,13 +5,11 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from pendientes import pendiente
 from transim.metrics.report import generate_reports
 
 ESPERADOS = ["transistores", "actividad", "camino_critico", "comparacion_sumadores"]
 
 
-@pendiente(24)
 def test_genera_markdown_y_csv(tmp_path: Path) -> None:
     rutas = generate_reports(tmp_path)
     nombres = {p.name for p in rutas}

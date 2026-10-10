@@ -8,7 +8,6 @@ import pytest
 from typer.testing import CliRunner, Result
 
 from cpu.programas import EJEMPLOS
-from pendientes import pendiente
 from transim.ui.cli import app
 
 runner = CliRunner()
@@ -49,7 +48,6 @@ def test_asm_y_run(tmp_path: Path) -> None:
     assert "0x40700000" in r.output
 
 
-@pendiente(24)
 def test_metrics(tmp_path: Path) -> None:
     r = invocar("metrics", "--out", str(tmp_path))
     assert r.exit_code == 0
