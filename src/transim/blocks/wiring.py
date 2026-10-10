@@ -6,7 +6,7 @@ nodo de salida, de modo que los bloques se escriben como expresiones lógicas.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from transim.cells import combinational as cells
 from transim.core.netlist import Netlist
@@ -72,22 +72,26 @@ class Wiring:
         )
         return cout
 
-    def and_tree(self, nodes: Sequence[Node]) -> Node:
+    def and_tree(self, nodes: Sequence[Node], out: Node | None = None) -> Node:
         """AND de todos los nodos con un árbol balanceado de AND2."""
-        return self._tree(list(nodes), self.and2)
+        return self._tree(list(nodes), self.and2, out)
 
-    def or_tree(self, nodes: Sequence[Node]) -> Node:
+    def or_tree(self, nodes: Sequence[Node], out: Node | None = None) -> Node:
         """OR de todos los nodos con un árbol balanceado de OR2."""
-        return self._tree(list(nodes), self.or2)
+        return self._tree(list(nodes), self.or2, out)
 
-    @staticmethod
-    def _tree(nodes: list[Node], op: object) -> Node:
+    def _tree(
+        self, nodes: list[Node], op: Callable[[Node, Node, Node | None], Node], out: Node | None
+    ) -> Node:
+        """Reduce ``nodes`` por pares; la última compuerta maneja ``out`` si se da."""
         if not nodes:
             raise ValueError("árbol sin entradas")
-        while len(nodes) > 1:
-            pairs = [op(nodes[i], nodes[i + 1]) for i in range(0, len(nodes) - 1, 2)]  # type: ignore[operator]
+        if len(nodes) == 1:
+            return self.buf(nodes[0], out) if out is not None else nodes[0]
+        while len(nodes) > 2:
+            pairs = [op(nodes[i], nodes[i + 1], None) for i in range(0, len(nodes) - 1, 2)]
             nodes = pairs + ([nodes[-1]] if len(nodes) % 2 else [])
-        return nodes[0]
+        return op(nodes[0], nodes[1], out)
 
 
 def ripple_add(

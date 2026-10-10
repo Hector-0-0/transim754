@@ -1,4 +1,4 @@
-"""Secuenciador de control FETCH → DECODE → EXECUTE → WRITEBACK (responsable: Héctor).
+"""Secuenciador de control FETCH → DECODE → EXECUTE → WRITEBACK.
 
 En v0.x es de comportamiento (ADR-0006); en v1.0 pasa a compuertas y flip-flops sin
 cambiar esta interfaz.
@@ -27,4 +27,16 @@ class ControlFSM:
 
     def advance(self, *, halt: bool = False) -> Phase:
         """Pasa a la fase siguiente (``halt`` en DECODE lleva a HALTED) y la devuelve."""
-        raise NotImplementedError("pendiente: #30")
+        if self.phase is Phase.DECODE and halt:
+            self.phase = Phase.HALTED
+        elif self.phase is not Phase.HALTED:
+            self.phase = _NEXT[self.phase]
+        return self.phase
+
+
+_NEXT = {
+    Phase.FETCH: Phase.DECODE,
+    Phase.DECODE: Phase.EXECUTE,
+    Phase.EXECUTE: Phase.WRITEBACK,
+    Phase.WRITEBACK: Phase.FETCH,
+}
