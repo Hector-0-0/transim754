@@ -9,7 +9,6 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from pendientes import pendiente
 from transim.assistant.null import NullAssistant
 from transim.assistant.port import Assistant
 from transim.fpu.format import BINARY32
@@ -58,7 +57,6 @@ def ollama_falso() -> Iterator[str]:
     servidor.shutdown()
 
 
-@pendiente(32)
 def test_ollama_contra_servidor_local(ollama_falso: str) -> None:
     from transim.assistant.ollama import OllamaAssistant
 
@@ -69,13 +67,10 @@ def test_ollama_contra_servidor_local(ollama_falso: str) -> None:
     assert a.propose_edge_cases("+", BINARY32, 5) == [(0x3F800000, 0), (1, 2)]  # ignora basura
 
 
-@pendiente(32)
 def test_anthropic_exige_la_clave(monkeypatch: pytest.MonkeyPatch) -> None:
     from transim.assistant.anthropic import API_KEY_ENV, AnthropicAssistant
 
     monkeypatch.delenv(API_KEY_ENV, raising=False)
     with pytest.raises(RuntimeError) as info:
         AnthropicAssistant("modelo")
-    if isinstance(info.value, NotImplementedError):  # stub: que lo reconozca el xfail
-        raise info.value
     assert API_KEY_ENV in str(info.value)
