@@ -69,14 +69,33 @@ def nor2() -> Netlist:
 # ----------------------------------------------------------------------------
 @cache
 def and2() -> Netlist:
-    """AND2: y = a·b. 6 transistores (NAND2 + INV). Nombre de celda ``"AND2"``."""
-    raise NotImplementedError("pendiente: #1")
+    """AND2: y = a·b. 6 transistores (NAND2 + INV). Nombre de celda ``"AND2"``.
+
+    Una etapa CMOS estática solo produce funciones invertidas, así que la AND se arma
+    con una NAND2 (``u_nand``) cuya salida ``ny`` = ¬(a·b) maneja un INV (``u_inv``).
+    Las entradas solo llegan a compuertas de la NAND2 y la salida la restaura el INV.
+    """
+    nl = Netlist("AND2")
+    a, b, y = nl.input("a"), nl.input("b"), nl.output("y")
+    ny = nl.node("ny")
+    nl.instantiate(nand2(), "u_nand", {"a": a, "b": b, "y": ny})
+    nl.instantiate(inv(), "u_inv", {"a": ny, "y": y})
+    return nl
 
 
 @cache
 def or2() -> Netlist:
-    """OR2: y = a + b. 6 transistores (NOR2 + INV). Nombre de celda ``"OR2"``."""
-    raise NotImplementedError("pendiente: #1")
+    """OR2: y = a + b. 6 transistores (NOR2 + INV). Nombre de celda ``"OR2"``.
+
+    Misma idea que AND2: una NOR2 (``u_nor``) produce ``ny`` = ¬(a + b) y un INV
+    (``u_inv``) la invierte y restaura.
+    """
+    nl = Netlist("OR2")
+    a, b, y = nl.input("a"), nl.input("b"), nl.output("y")
+    ny = nl.node("ny")
+    nl.instantiate(nor2(), "u_nor", {"a": a, "b": b, "y": ny})
+    nl.instantiate(inv(), "u_inv", {"a": ny, "y": y})
+    return nl
 
 
 @cache
