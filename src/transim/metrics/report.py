@@ -11,6 +11,7 @@ from pathlib import Path
 from transim.core.engine_switch import InputValue
 from transim.core.netlist import Netlist
 from transim.core.unit import make_engine
+from transim.cpu.isa import WORD_BITS
 from transim.metrics.activity import measure_activity
 from transim.metrics.count import count
 from transim.metrics.critical_path import cell_depth
@@ -18,8 +19,8 @@ from transim.metrics.critical_path import cell_depth
 ACTIVITY_OPERATIONS = 12
 """Estímulos aleatorios por módulo en la tabla de actividad."""
 
-ADDER_WIDTHS = (8, 16, 32)
-"""Anchos de la comparación RCA frente a CLA."""
+ADDER_WIDTHS = (WORD_BITS // 4, WORD_BITS // 2, WORD_BITS)
+"""Anchos de la comparación RCA frente a CLA (un cuarto, media y una palabra)."""
 
 Builder = Callable[[], Netlist]
 
@@ -31,7 +32,7 @@ def _modules() -> list[tuple[str, Builder]]:
     from transim.cells.library import CELLS
     from transim.cells.sequential import register
     from transim.cpu.decoder import instruction_decoder
-    from transim.cpu.isa import WORD_BITS
+    from transim.cpu.isa import N_REGS
     from transim.cpu.registers import register_file
     from transim.fpu import add_sub, div, mul
     from transim.fpu.format import BINARY16, BINARY32
@@ -44,7 +45,7 @@ def _modules() -> list[tuple[str, Builder]]:
         (f"CLA{WORD_BITS}", lambda: adders.carry_lookahead_adder(WORD_BITS)),
         (f"ADDSUB{WORD_BITS}", lambda: subtractor.adder_subtractor(WORD_BITS)),
         (f"CMP{WORD_BITS}", lambda: comparator.magnitude_comparator(WORD_BITS)),
-        (f"MUX8x{WORD_BITS}", lambda: mux.mux_n(WORD_BITS, 8)),
+        (f"MUX{N_REGS}x{WORD_BITS}", lambda: mux.mux_n(WORD_BITS, N_REGS)),
         ("SHR27", lambda: shifter.barrel_shifter(BINARY32.precision + 3, "right")),
         ("LZC28", lambda: lzc.leading_zero_counter(BINARY32.precision + 4)),
         (f"ALU{WORD_BITS}", lambda: int_alu(WORD_BITS)),
@@ -87,7 +88,7 @@ def _write(
     """Escribe ``base.csv`` y ``base.md`` con la misma tabla."""
     csv_path, md_path = out_dir / f"{base}.csv", out_dir / f"{base}.md"
     with csv_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
+        writer = csv.writer(f, lineterminator="\n")
         writer.writerow(header)
         writer.writerows(rows)
     lines = [f"# {title}", "", "| " + " | ".join(header) + " |"]
