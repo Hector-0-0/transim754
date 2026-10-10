@@ -257,7 +257,9 @@ def validar(nombre: str, completo: bool) -> bool:
     if m.issues:
         alternativas = "|".join(map(str, m.issues))
         patron = re.compile(rf"pendiente\(({alternativas})\)")
-        restantes = buscar(["tests"], patron) + pendientes_en_tablas(m.issues)
+        # tests/pendientes.py define el marcador y lo cita en su documentación.
+        usos = [h for h in buscar(["tests"], patron) if not h.startswith("tests/pendientes.py:")]
+        restantes = usos + pendientes_en_tablas(m.issues)
         ok_pend = not restantes
         print(f"[{'PASS' if ok_pend else 'FAIL'}] pendientes en tests/: {len(restantes)}")
         for r in restantes[:10]:
