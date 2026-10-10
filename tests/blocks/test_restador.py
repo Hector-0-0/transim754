@@ -7,12 +7,9 @@ import random
 
 import pytest
 
-from pendientes import pendiente
 from transim.blocks.subtractor import adder_subtractor
 from transim.core import HardwareUnit
 from transim.reference.blocks import add_sub
-
-pytestmark = pendiente(8)
 
 
 @pytest.mark.switch

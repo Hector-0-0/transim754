@@ -6,12 +6,9 @@ import random
 
 import pytest
 
-from pendientes import pendiente
 from transim.blocks.lzc import count_bits_for, leading_zero_counter
 from transim.core import HardwareUnit
 from transim.reference.blocks import leading_zeros
-
-pytestmark = pendiente(12)
 
 
 @pytest.mark.switch

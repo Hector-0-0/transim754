@@ -7,12 +7,9 @@ import random
 
 import pytest
 
-from pendientes import pendiente
 from transim.blocks.comparator import magnitude_comparator
 from transim.core import HardwareUnit
 from transim.reference.blocks import compare
-
-pytestmark = pendiente(9)
 
 
 @pytest.mark.switch
