@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from pendientes import pendiente
 from transim.cells import sequential as seq
 from transim.core import Logic, SwitchEngine
 
@@ -12,7 +11,6 @@ pytestmark = pytest.mark.switch
 L0, L1 = Logic.ZERO, Logic.ONE
 
 
-@pendiente(5)
 def test_latch_transparente_y_retencion() -> None:
     nl = seq.d_latch()
     assert nl.sequential
@@ -30,7 +28,6 @@ def test_latch_transparente_y_retencion() -> None:
     assert sim.read("q") is L1
 
 
-@pendiente(5)
 def test_flip_flop_captura_en_flanco_de_subida() -> None:
     nl = seq.dff()
     assert nl.sequential
@@ -46,7 +43,6 @@ def test_flip_flop_captura_en_flanco_de_subida() -> None:
     assert sim.read("q") is L0
 
 
-@pendiente(5)
 def test_flip_flop_estable_ante_muchos_ciclos() -> None:
     sim = SwitchEngine(seq.dff())
     sim.set_inputs({"clk": 0, "d": 0})
@@ -58,7 +54,6 @@ def test_flip_flop_estable_ante_muchos_ciclos() -> None:
         sim.set_inputs({"clk": 0})
 
 
-@pendiente(6)
 @pytest.mark.parametrize("ancho", [1, 4, 8])
 def test_registro_con_habilitacion(ancho: int) -> None:
     nl = seq.register(ancho)
