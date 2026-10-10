@@ -8,7 +8,6 @@ import random
 import pytest
 
 from fpu.comun import comparar, pares_aceptacion, pares_rapidos
-from pendientes import pendiente
 from transim.core import HardwareUnit
 from transim.fpu.div import FPDiv, nonrestoring_divider, quotient_bits
 from transim.fpu.format import BINARY16, BINARY32, FloatFormat
@@ -22,7 +21,6 @@ def test_bits_de_cociente() -> None:
     assert quotient_bits(BINARY16) == 14
 
 
-@pendiente(20)
 @pytest.mark.switch
 @pytest.mark.parametrize("ancho", [2, 3, 4])
 def test_divisor_exhaustivo(ancho: int) -> None:
@@ -34,7 +32,6 @@ def test_divisor_exhaustivo(ancho: int) -> None:
         assert (out["q"], out["sticky"]) == tuple(int(x) for x in divide_mantissas(a, b, q_bits))
 
 
-@pendiente(20)
 @pytest.mark.cached
 @pytest.mark.parametrize("fmt", [BINARY16, BINARY32], ids=lambda f: f.name)
 def test_divisor_anchos_de_mantisa(fmt: FloatFormat) -> None:
@@ -49,7 +46,6 @@ def test_divisor_anchos_de_mantisa(fmt: FloatFormat) -> None:
         assert (out["q"], out["sticky"]) == tuple(int(x) for x in divide_mantissas(a, b, q_bits))
 
 
-@pendiente(21)
 @pytest.mark.cached
 def test_ejemplo_5_de_docs_03() -> None:
     r = FPDiv(BINARY32).div(0x3F800000, 0x40400000)  # 1/3
@@ -57,14 +53,12 @@ def test_ejemplo_5_de_docs_03() -> None:
     assert r.flags.inexact
 
 
-@pendiente(21)
 @pytest.mark.cached
 @FORMATOS
 def test_rapido(fmt: FloatFormat) -> None:
     comparar(fmt, "/", FPDiv(fmt).div, pares_rapidos(fmt))
 
 
-@pendiente(21)
 @pytest.mark.slow
 @FORMATOS
 def test_aceptacion(fmt: FloatFormat) -> None:
