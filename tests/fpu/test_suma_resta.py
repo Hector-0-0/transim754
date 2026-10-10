@@ -9,11 +9,10 @@ from __future__ import annotations
 import pytest
 
 from fpu.comun import comparar, pares_aceptacion, pares_rapidos
-from pendientes import pendiente
 from transim.fpu.add_sub import FPAddSub
 from transim.fpu.format import BINARY16, BINARY32, FloatFormat
 
-pytestmark = [pendiente(17), pytest.mark.cached]
+pytestmark = pytest.mark.cached
 FORMATOS = pytest.mark.parametrize("fmt", [BINARY16, BINARY32], ids=lambda f: f.name)
 
 
