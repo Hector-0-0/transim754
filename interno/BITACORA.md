@@ -4,6 +4,26 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-10-23 · Mejora del módulo de métricas — Yenny
+
+**Hecho**
+- Se agregó una interpretación automática de la comparación entre sumadores RCA y CLA.
+- Se calcularon las diferencias de transistores y profundidad lógica para 8, 16 y 32 bits.
+- Se incorporó una prueba automatizada para comprobar las conclusiones con los datos CSV.
+- Se generaron correctamente los ocho archivos de métricas.
+
+**Verificación**
+- Métricas: 12 pruebas aprobadas.
+- Ruff: verificación de estilo correcta.
+- Mypy: 59 archivos sin errores.
+- Resultado general: PASS.
+
+**Pendiente**
+- Crear el commit de la mejora.
+- Solicitar revisión e integración al repositorio del equipo.
+
+---
+
 ## 2026-10-10 · Implementación completa y avance v0.1.0
 
 **Hecho**

@@ -194,15 +194,38 @@ def _adder_comparison() -> tuple[str, str, list[str], list[list[object]], list[s
         "RCA": ripple_carry_adder,
         "CLA": carry_lookahead_adder,
     }
+
+    notes = [
+        "La profundidad se mide en celdas primitivas sobre el camino más largo.",
+        "Diferencias CLA - RCA: una profundidad negativa favorece al CLA.",
+    ]
+
     for width in ADDER_WIDTHS:
+        measured: dict[str, tuple[int, int]] = {}
+
         for kind, build in builders.items():
             nl = build(width)
             act = _activity_row(nl.name, nl, width)
-            rows.append([kind, width, count(nl).total, cell_depth(nl), act[5], act[6]])
+
+            transistors = count(nl).total
+            depth = cell_depth(nl)
+
+            rows.append([kind, width, transistors, depth, act[5], act[6]])
+            measured[kind] = (transistors, depth)
+
+        rca_transistors, rca_depth = measured["RCA"]
+        cla_transistors, cla_depth = measured["CLA"]
+
+        notes.append(
+            f"{width} bits: CLA frente a RCA = "
+            f"{cla_transistors - rca_transistors:+d} transistores y "
+            f"{cla_depth - rca_depth:+d} niveles de profundidad."
+        )
+
     return (
         "comparacion_sumadores",
         "Comparación de sumadores: ripple-carry frente a carry-lookahead",
         ["sumador", "ancho", "transistores", "profundidad", "alpha", "ms_por_op"],
         rows,
-        ["La profundidad se mide en celdas primitivas sobre el camino más largo."],
+        notes,
     )
