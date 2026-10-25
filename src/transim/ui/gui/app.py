@@ -48,6 +48,8 @@ from PySide6.QtWidgets import (
 from transim.cells.library import CELLS
 from transim.core.engine_switch import SwitchEngine
 from transim.core.netlist import Instance, Netlist
+from transim.core.signals import Logic
+from transim.core.transistor import TransistorType
 from transim.core.unit import EngineName, HardwareUnit
 from transim.cpu import isa
 from transim.cpu.assembler import AssemblyError, assemble
@@ -61,7 +63,10 @@ from transim.metrics.stages import (
     schedule,
 )
 from transim.reference import fpu as ref
-from transim.ui.gui.transistor_view import CellScene, ZoomView, spec_for_cell, spec_for_instance
+from transim.ui.gui import theme
+from transim.ui.gui.canvas import CanvasView, CircuitScene, Hit, logic_text
+from transim.ui.gui.circuit import Binding, active_path, bind_cell, bind_instance
+from transim.ui.gui.cross_section import CrossSection, Device, explain
 
 BLOCK_LIMIT = 2500
 """Transistores máximos de un bloque para dibujarlo completo en un plano."""
@@ -547,18 +552,19 @@ def instance_toggles(engine: SwitchEngine, inst: Instance) -> int:
 
 
 class TransistorTab(QWidget):
-    """Microscopio: de los bloques de una unidad hasta cada transistor y su estado."""
+    """Microscopio: de los bloques de una unidad hasta cada transistor, en esquema o en
+    silicio, con un inspector que muestra el corte transversal del transistor elegido."""
 
     def __init__(self) -> None:
         super().__init__()
-        self.scene = CellScene()
-        self.view = ZoomView(self.scene)
+        self.scene = CircuitScene()
+        self.view = CanvasView(self.scene)
         self.info = QLabel("Elija una celda de la biblioteca o calcule una operación.")
         self.info.setWordWrap(True)
         self.unit: HardwareUnit | None = None
         self._children: dict[str | None, list[Instance]] = {}
+        self._current: tuple[str, object] | None = None
 
-        # Fuente 1: una celda de la biblioteca con entradas elegidas por el usuario.
         self.cell_box = QComboBox()
         self.cell_box.addItems(LEAF_CELLS)
         self.cell_box.currentTextChanged.connect(self.set_cell)
@@ -569,47 +575,117 @@ class TransistorTab(QWidget):
         lib_layout = QVBoxLayout(library)
         lib_layout.addWidget(QLabel("Celda"))
         lib_layout.addWidget(self.cell_box)
-        lib_layout.addWidget(QLabel("Entradas"))
+        lib_layout.addWidget(QLabel("Entradas (o haga clic en ellas en el dibujo)"))
         lib_layout.addLayout(self.inputs_row)
         lib_layout.addWidget(QLabel("Salidas"))
         lib_layout.addWidget(self.outputs)
         lib_layout.addStretch(1)
         self.checks: dict[str, QCheckBox] = {}
 
-        # Fuente 2: la jerarquía de la unidad de la última operación.
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels(["instancia", "definición", "T", "conm."])
         self.tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.tree.setMinimumWidth(330)
+        self.tree.setMinimumWidth(300)
         self.tree.itemExpanded.connect(self._expand)
         self.tree.currentItemChanged.connect(self._select)
 
         self.sources = QTabWidget()
         self.sources.addTab(library, "Biblioteca")
         self.sources.addTab(self.tree, "Última operación")
+
+        self.schematic_button = QPushButton("Esquema")
+        self.silicon_button = QPushButton("Silicio")
+        for b in (self.schematic_button, self.silicon_button):
+            b.setCheckable(True)
+            b.setAutoExclusive(True)
+        self.schematic_button.setChecked(True)
+        self.schematic_button.setToolTip("Esquema eléctrico CMOS: redes pull-up y pull-down")
+        self.silicon_button.setToolTip(
+            "Layout ilustrativo: difusión, polisilicio y metal, como se vería en el chip"
+        )
+        self.schematic_button.toggled.connect(self._redraw)
         fit = QPushButton("Ajustar")
-        fit.clicked.connect(self.view.fit)
+        fit.clicked.connect(lambda: self.view.fit())
         zoom_in, zoom_out = QPushButton("+"), QPushButton("−")
         zoom_in.clicked.connect(self.view.zoom_in)
         zoom_out.clicked.connect(self.view.zoom_out)
-        legend = QLabel(
-            "<span style='color:#1e8e3e'>■</span> conduce · "
-            "<span style='color:#bdc1c6'>■</span> no conduce · "
-            "<span style='color:#c62828'>1</span> / <span style='color:#1a5fd0'>0</span> / "
-            "<span style='color:#c77700'>X</span> valor del nodo · arrastre para moverse"
+        self.legend = QLabel()
+        self.legend.setWordWrap(True)
+
+        self.inspector_title = QLabel("<b>Inspector</b>")
+        self.inspector_text = QLabel(
+            "Pase el ratón por un transistor o un cable. Un clic fija el transistor."
         )
-        right = QVBoxLayout()
-        right.addWidget(self.info)
-        right.addWidget(self.view, 1)
+        self.inspector_text.setWordWrap(True)
+        self.section = CrossSection()
+        inspector = QVBoxLayout()
+        inspector.addWidget(self.inspector_title)
+        inspector.addWidget(self.inspector_text)
+        inspector.addWidget(self.section)
+        inspector.addStretch(1)
+        inspector_box = QWidget()
+        inspector_box.setLayout(inspector)
+        inspector_box.setFixedWidth(320)
+
         bar = QHBoxLayout()
-        bar.addWidget(legend, 1)
+        bar.addWidget(self.schematic_button)
+        bar.addWidget(self.silicon_button)
+        bar.addWidget(self.info, 1)
         for button in (zoom_out, zoom_in, fit):
             bar.addWidget(button)
-        right.addLayout(bar)
+        center = QVBoxLayout()
+        center.addLayout(bar)
+        center.addWidget(self.view, 1)
+        center.addWidget(self.legend)
         layout = QHBoxLayout(self)
         layout.addWidget(self.sources, 2)
-        layout.addLayout(right, 5)
+        layout.addLayout(center, 6)
+        layout.addWidget(inspector_box)
+
+        self.scene.hovered.connect(self._hover)
+        self.view.clicked.connect(self._clicked)
         self.set_cell(LEAF_CELLS[0])
+
+    # ------------------------------------------------------------- dibujo
+    @property
+    def silicon(self) -> bool:
+        return self.silicon_button.isChecked()
+
+    def _legend(self) -> None:
+        t = theme.current()
+        if self.silicon:
+            from transim.ui.gui.canvas import LAYER_COLOR, LAYER_NAMES
+
+            parts = [
+                f"<span style='color:{LAYER_COLOR[k]}'>■</span> {LAYER_NAMES[k]}"
+                for k in ("pdiff", "ndiff", "poly", "metal1", "metal2")
+            ]
+            parts.append(f"<span style='color:{t.on}'>■</span> canal que conduce")
+            self.legend.setText(" · ".join(parts) + " · layout ilustrativo, no a escala")
+        else:
+            self.legend.setText(
+                f"<span style='color:{t.one}'>■</span> 1 · <span style='color:{t.zero}'>■</span> 0"
+                f" · <span style='color:{t.unknown}'>■</span> X · canal continuo: conduce; "
+                "cortado: no conduce · fondo verde: camino que fija la salida · "
+                "arrastre para moverse, rueda para el zoom"
+            )
+
+    def _draw(self, bindings: list[tuple[Binding, str]], values: Any, clickable: bool) -> None:
+        if self.silicon:
+            self.scene.show_silicon([("", bindings)], values, clickable=clickable)
+        else:
+            self.scene.show_schematics(bindings, values, clickable=clickable)
+        self._legend()
+        self.view.fit()
+
+    def _redraw(self) -> None:
+        if self._current is None:
+            return
+        kind, what = self._current
+        if kind == "cell":
+            self.apply_inputs()
+        elif isinstance(what, QTreeWidgetItem):
+            self._select(what)
 
     # ------------------------------------------------------------- biblioteca
     def set_cell(self, name: str) -> None:
@@ -628,20 +704,102 @@ class TransistorTab(QWidget):
             box.toggled.connect(self.apply_inputs)
             self.inputs_row.addWidget(box)
             self.checks[port] = box
+        self._current = ("cell", name)
         self.apply_inputs()
-        self.view.fit()
 
     def apply_inputs(self) -> None:
         """Aplica las entradas marcadas a la celda y redibuja sus transistores."""
+        before = {n.id: self.engine.value(n) for n in self.cell.nodes}
         self.engine.set_inputs({p: int(box.isChecked()) for p, box in self.checks.items()})
         outs = "  ".join(f"{p} = {self.engine.read(p).name}" for p in self.cell.outputs)
         self.outputs.setText(outs.replace("ZERO", "0").replace("ONE", "1"))
         n = len(self.cell.transistors)
-        self.scene.draw_cells([spec_for_cell(self.cell)], self.engine.value, self.engine.conduction)
-        self.info.setText(
-            f"Celda {self.cell.name}: {self.scene.flowing} de {n} transistores conducen con "
-            "estas entradas. Cambie una entrada para ver qué transistores conmutan."
+        self._draw(
+            [(bind_cell(self.cell), f"{self.cell.name} · {n} transistores")], self.engine, True
         )
+        changed = {i for i, v in before.items() if v != self.engine.value(self.cell.nodes[i])}
+        self._animate(changed)
+        self.info.setText(
+            f"Celda {self.cell.name}: {self.scene.flowing} de {n} transistores conducen. "
+            "Haga clic en una entrada para cambiarla."
+        )
+
+    def _animate(self, changed: set[int]) -> None:
+        """Corriente transitoria por los transistores que cargaron o descargaron un nodo."""
+        from transim.ui.gui.canvas import SchematicItem
+
+        flows = {}
+        for item in self.scene.cells:
+            if not isinstance(item, SchematicItem):
+                continue
+            state = item.binding.state(self.engine)
+            path: set[int] = set()
+            for stage, _, _ in item.geo.stages:
+                if item.node_id(stage.output) in changed:
+                    out = self.engine.value(item.binding.nodes[stage.output])
+                    tree = stage.pull_up if out is Logic.ONE else stage.pull_down
+                    path |= active_path(tree, state)
+            flows[item] = path
+        self.scene.start_flow(flows)
+
+    # -------------------------------------------------------------- ratón
+    def _clicked(self, hit: Hit | None) -> None:
+        if hit is None:
+            self.scene.select(None, None)
+            return
+        if hit.kind == "input" and hit.port in self.checks:
+            box = self.checks[hit.port]
+            box.setChecked(not box.isChecked())
+            return
+        if hit.kind == "transistor":
+            self.scene.select(hit.item, hit.transistor)
+            self._inspect(hit)
+
+    def _hover(self, hit: Hit | None) -> None:
+        if hit is None or hit.kind == "cell":
+            if self.scene.selected_transistor is not None and self.scene.selected_item is not None:
+                self._inspect(
+                    Hit(self.scene.selected_item, "transistor", self.scene.selected_transistor)
+                )
+            return
+        self._inspect(hit)
+
+    def _inspect(self, hit: Hit) -> None:
+        values = self.scene.values
+        if values is None:
+            return
+        b = hit.binding
+        if hit.kind == "transistor" and hit.transistor is not None:
+            t = b.transistors[hit.transistor]
+            c = b.circuit
+            d = c.transistors[hit.transistor]
+            dev = Device(
+                pmos=t.kind is TransistorType.PMOS,
+                name=d.name,
+                gate=c.label(d.gate.id),
+                source=c.label(d.source.id),
+                drain=c.label(d.drain.id),
+                gate_value=values.value(t.gate),
+                source_value=values.value(t.source),
+                drain_value=values.value(t.drain),
+                state=values.conduction(t),
+            )
+            flowing = hit.item in self.scene.flows and hit.transistor in self.scene.flows[hit.item]
+            self.section.show_device(dev, flowing)
+            kind = "pMOS" if dev.pmos else "nMOS"
+            where = f" en {b.path}" if b.path else ""
+            self.inspector_title.setText(f"<b>{kind} {d.name}</b>{where}")
+            self.inspector_text.setText(explain(dev))
+        elif hit.node is not None:
+            node = next((n for n in b.nodes.values() if n.id == hit.node), None)
+            if node is None:
+                return
+            v = values.value(node)
+            self.inspector_title.setText(f"<b>Nodo {node.name}</b>")
+            self.inspector_text.setText(
+                f"Valor {logic_text(v)}. Se resalta en amarillo en todas las celdas "
+                "a las que llega."
+            )
 
     # -------------------------------------------------------- última operación
     def show_calculation(self, calc: Calculation) -> None:
@@ -653,6 +811,7 @@ class TransistorTab(QWidget):
             self._children.setdefault(inst.parent, []).append(inst)
         self.tree.clear()
         root = QTreeWidgetItem([netlist.name, "unidad", str(len(netlist.transistors)), ""])
+        root.setData(0, Qt.ItemDataRole.UserRole, "unit")
         self.tree.addTopLevelItem(root)
         self._fill(root, None)
         root.setExpanded(True)
@@ -707,33 +866,52 @@ class TransistorTab(QWidget):
 
     def _select(self, item: QTreeWidgetItem | None, _previous: object = None) -> None:
         inst = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
-        if not isinstance(inst, Instance) or self.unit is None:
+        if self.unit is None or item is None:
             return
         engine = self.unit.engine
+        netlist = self.unit.netlist
+        self._current = ("tree", item)
+        if inst == "unit":
+            groups = []
+            for top in netlist.top_instances():
+                if top.is_leaf:
+                    continue
+                cells = [c for c in netlist.leaf_instances() if c.path.startswith(f"{top.path}.")]
+                groups.append((top.path, [(bind_instance(c), c.path) for c in cells]))
+            glue = [c for c in netlist.top_instances() if c.is_leaf]
+            groups.append((STAGE_NAMES[GLUE], [(bind_instance(c), c.path) for c in glue]))
+            self.silicon_button.setChecked(True)
+            n = len(netlist.transistors)
+            self.scene.show_silicon(groups, engine, die=(netlist.name, f"{n} transistores"))
+            self._legend()
+            self.view.fit()
+            self.info.setText(
+                f"{netlist.name}: el chip completo, {n} transistores en filas de celdas "
+                "estándar. Acérquese con la rueda hasta ver cada transistor."
+            )
+            return
+        if not isinstance(inst, Instance):
+            return
         toggles = instance_toggles(engine, inst)
         n = len(inst.transistors)
         if inst.is_leaf:
             cells = [inst]
-        elif n <= BLOCK_LIMIT:
-            cells = [
-                c for c in self.unit.netlist.leaf_instances() if c.path.startswith(f"{inst.path}.")
-            ]
+        elif n <= BLOCK_LIMIT or self.silicon:
+            cells = [c for c in netlist.leaf_instances() if c.path.startswith(f"{inst.path}.")]
         else:
             self.info.setText(
                 f"{inst.path}: bloque {inst.definition.name} con {n} transistores y {toggles} "
-                f"conmutaciones en la última operación. Es demasiado grande para un solo plano "
-                f"(más de {BLOCK_LIMIT} transistores): expándalo y elija una parte."
+                f"conmutaciones. Su esquema es muy grande (más de {BLOCK_LIMIT} transistores): "
+                "véalo en Silicio o expándalo y elija una parte."
             )
             return
         base = "" if inst.is_leaf else f"{inst.path}."
-        specs = [spec_for_instance(c, base) for c in cells]
-        self.scene.draw_cells(specs, engine.value, engine.conduction)
-        self.view.fit()
+        bindings = [(bind_instance(c), c.path[len(base) :] or c.path) for c in cells]
+        self._draw(bindings, engine, False)
         what = "celda" if inst.is_leaf else f"bloque de {len(cells)} celdas"
         self.info.setText(
-            f"{inst.path} ({inst.definition.name}, {what}) en la última operación: "
-            f"{self.scene.flowing} de {n} transistores conducen; {toggles} conmutaciones de "
-            "sus nodos. Arrastre para moverse y use la rueda o los botones para el zoom."
+            f"{inst.path} ({inst.definition.name}, {what}): {self.scene.flowing} de {n} "
+            f"transistores conducen; {toggles} conmutaciones en la última operación."
         )
 
 
@@ -755,7 +933,7 @@ def create_window() -> QMainWindow:
     tabs.addTab(transistors, "Transistores")
     tabs.addTab(ProgramTab(pool), "Programa")
     window.setCentralWidget(tabs)
-    window.resize(1100, 720)
+    window.resize(1360, 820)
     return window
 
 
@@ -769,6 +947,8 @@ def main() -> int:
     cada nMOS y pMOS con su estado; pestaña para ejecutar programas ``.t754`` paso a paso.
     """
     app = QApplication.instance() or QApplication(sys.argv)
+    if isinstance(app, QApplication):
+        theme.apply(app, theme.DARK if theme.system_prefers_dark() else theme.LIGHT)
     window = create_window()
     window.show()
     return int(app.exec())
