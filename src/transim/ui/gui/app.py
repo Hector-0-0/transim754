@@ -1,6 +1,6 @@
 """Interfaz gráfica de escritorio con PySide6. ADR-0011.
 
-Requiere el extra ``gui`` (``make install-gui``). Ver ``ui/gui/GUIA.md``.
+Requiere el extra ``gui`` (``make install-gui``).
 
 La interfaz solo muestra: los resultados los calculan las unidades de transistores
 (``FPAddSub``, ``FPMul``, ``FPDiv``) y la máquina T754. La conversión de texto a bits

@@ -1,4 +1,4 @@
-"""Desempaquetado, clasificación y casos especiales (responsable: Daniel). Issue #15."""
+"""Desempaquetado, clasificación y casos especiales. Issue #15."""
 
 from __future__ import annotations
 

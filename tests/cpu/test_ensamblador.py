@@ -1,4 +1,4 @@
-"""Ensamblador .t754 (responsable: Héctor). Issue #29."""
+"""Ensamblador .t754. Issue #29."""
 
 from __future__ import annotations
 

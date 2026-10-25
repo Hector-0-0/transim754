@@ -1,4 +1,4 @@
-"""ALU entera de 32 bits (responsable: Ronald). Issue #13."""
+"""ALU entera de 32 bits. Issue #13."""
 
 from __future__ import annotations
 

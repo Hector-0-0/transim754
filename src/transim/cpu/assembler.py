@@ -1,4 +1,4 @@
-"""Ensamblador de texto ``.t754`` a binario (responsable: Héctor). ADR-0010, docs/04 §5."""
+"""Ensamblador de texto ``.t754`` a binario. ADR-0010, docs/04 §5."""
 
 from __future__ import annotations
 

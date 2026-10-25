@@ -154,7 +154,7 @@ sim.set_inputs({"a": 1, "b": 1})
 assert sim.read("y") == Logic.ZERO
 ```
 
-Las firmas exactas están en los stubs de `src/transim/core/` y en la GUIA del módulo.
+Las firmas exactas y su documentación están en `src/transim/core/`.
 
 ## Referencias
 

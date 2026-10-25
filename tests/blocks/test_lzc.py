@@ -1,4 +1,4 @@
-"""Contador de ceros a la izquierda (responsable: Ronald). Issue #12."""
+"""Contador de ceros a la izquierda. Issue #12."""
 
 from __future__ import annotations
 

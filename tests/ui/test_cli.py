@@ -1,4 +1,4 @@
-"""CLI ``transim`` (responsable: Héctor). Issues #31 y #24."""
+"""CLI ``transim``. Issues #31 y #24."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Decodificador, banco de registros, control y máquina T754 (responsable: Héctor). Issue #30."""
+"""Decodificador, banco de registros, control y máquina T754. Issue #30."""
 
 from __future__ import annotations
 

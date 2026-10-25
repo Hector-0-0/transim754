@@ -1,4 +1,4 @@
-"""Barrel shifter con sticky (responsable: Ronald). Issue #11."""
+"""Barrel shifter con sticky. Issue #11."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Celdas combinacionales de L1 (responsable: Jairo). Issues #1–#4."""
+"""Celdas combinacionales de L1. Issues #1–#4."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Bloque compartido round_and_pack (dueño: Daniel). Issue #16.
+"""Bloque compartido round_and_pack. Issue #16.
 
 Contrato: ``transim.reference.fpu.round_and_pack``.
 """

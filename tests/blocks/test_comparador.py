@@ -1,4 +1,4 @@
-"""Comparador de magnitud (responsable: Ronald). Issue #9."""
+"""Comparador de magnitud. Issue #9."""
 
 from __future__ import annotations
 

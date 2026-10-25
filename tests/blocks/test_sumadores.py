@@ -1,4 +1,4 @@
-"""Sumadores RCA y CLA (responsable: Ronald). Issues #7 y #14."""
+"""Sumadores RCA y CLA. Issues #7 y #14."""
 
 from __future__ import annotations
 

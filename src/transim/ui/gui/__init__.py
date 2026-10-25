@@ -1,1 +1,1 @@
-"""GUI de escritorio PySide6 (pendiente; ver GUIA.md)."""
+"""GUI de escritorio con PySide6: operación, transistores y programas."""
