@@ -85,4 +85,25 @@ def test_pestana_de_transistores() -> None:
         hoja = hoja.child(0)
     pestana._select(hoja)
     assert "conducen" in pestana.info.text()
+
+    # Un bloque pequeño se dibuja completo, todas sus celdas en un mismo plano.
+    desempaquetar = next(
+        raiz.child(i)
+        for i in range(raiz.childCount())
+        if raiz.child(i).text(0).startswith("unpack_a")
+    )
+    pestana._select(desempaquetar)
+    assert "bloque de" in pestana.info.text()
+    assert pestana.scene.flowing > 1
     assert app is not None
+
+
+def test_etiquetas_usan_los_puertos_de_la_celda() -> None:
+    from transim.blocks.adders import ripple_carry_adder
+    from transim.ui.gui.transistor_view import spec_for_instance
+
+    rca = ripple_carry_adder(2)
+    fa = rca.leaf_instances()[1]
+    spec = spec_for_instance(fa)
+    assert spec.name(fa.ports["a"]) == "a"
+    assert spec.name(fa.transistors[0].drain) == "cn1"  # nodo interno sin prefijo

@@ -1,4 +1,4 @@
-"""Actividad y camino crítico (responsable: Yenny). Issues #22 y #23."""
+"""Actividad y camino crítico. Issues #22 y #23."""
 
 from __future__ import annotations
 

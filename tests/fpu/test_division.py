@@ -1,4 +1,4 @@
-"""Divisor de mantisas y FDIV (responsable: Fabricio). Issues #20 y #21."""
+"""Divisor de mantisas y FDIV. Issues #20 y #21."""
 
 from __future__ import annotations
 

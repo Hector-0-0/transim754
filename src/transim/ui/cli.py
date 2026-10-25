@@ -9,9 +9,8 @@ Subcomandos (ver docs/04 y docs/05):
 - ``transim metrics --out docs/metricas``: genera las tablas de métricas.
 - ``transim gui``: abre la interfaz gráfica.
 
-Regla (ADR-0006): los resultados se calculan con el hardware de transistores. Mientras
-una unidad no esté integrada, el CLI usa el modelo de referencia y lo **avisa** en la
-salida; nunca presenta un resultado de referencia como si fuera de transistores.
+Regla (ADR-0006): los resultados se calculan con el hardware de transistores; el modelo
+de referencia solo convierte los operandos decimales a bits.
 """
 
 from __future__ import annotations
@@ -40,7 +39,6 @@ app = typer.Typer(
 _DIGITOS = isa.WORD_BITS // 4  # dígitos hexadecimales de una palabra
 ANCHO_COLUMNA = 10  # ancho mínimo de la columna de valores en `calc`
 OPERADORES = {"+": "add", "-": "sub", "*": "mul", "/": "div"}
-ISSUE_UNIDAD = {"add": 17, "sub": 17, "mul": 19, "div": 21}
 
 
 @app.callback()
@@ -145,19 +143,10 @@ def calc(
     bits_a, nota_a = _operando(a, fmt)
     bits_b, nota_b = _operando(b, fmt)
 
-    origen: str
-    salidas: dict[str, int | None] = {}
-    try:
-        resultado, salidas, transistores, segundos = _calcular_en_hardware(
-            fmt, operacion, bits_a, bits_b, motor
-        )
-        origen = f"transistores ({transistores} T, motor {motor}, {segundos * 1000:.1f} ms)"
-    except NotImplementedError:
-        resultado = ref.OPERATIONS[op](fmt, bits_a, bits_b)
-        origen = (
-            f"MODELO DE REFERENCIA — la unidad de transistores de '{op}' aún no está "
-            f"integrada (issue #{ISSUE_UNIDAD[operacion]})"
-        )
+    resultado, salidas, transistores, segundos = _calcular_en_hardware(
+        fmt, operacion, bits_a, bits_b, motor
+    )
+    origen = f"transistores ({transistores} T, motor {motor}, {segundos * 1000:.1f} ms)"
 
     ancho = max(len(a), len(b), ANCHO_COLUMNA)
     typer.echo(f"Formato {fmt.name}   (s | exponente | fracción)")
@@ -176,10 +165,8 @@ def calc(
         if etapas:
             for nombre, v in etapas.items():
                 typer.echo(f"  {nombre:<14} {'X' if v is None else hex(v)}")
-        elif salidas:
-            typer.echo("  (la unidad no expone buses dbg_ de etapas)")
         else:
-            typer.echo("  (etapas disponibles cuando la unidad de transistores esté integrada)")
+            typer.echo("  (la unidad no expone buses dbg_ de etapas)")
 
 
 # ------------------------------------------------------------------- asm y run
@@ -210,16 +197,9 @@ def asm(
 
 
 def _ejecutar(palabras: list[int], motor: EngineName) -> tuple[MachineState, str]:
-    try:
-        from transim.cpu.machine import Machine
+    from transim.cpu.machine import Machine
 
-        return Machine(palabras, engine=motor).run(), f"máquina de transistores (motor {motor})"
-    except NotImplementedError:
-        from transim.reference.machine import run as run_referencia
-
-        return run_referencia(palabras), (
-            "MODELO DE REFERENCIA — la máquina de transistores aún no está integrada (issue #30)"
-        )
+    return Machine(palabras, engine=motor).run(), f"máquina de transistores (motor {motor})"
 
 
 def _fsr(fsr: int) -> str:

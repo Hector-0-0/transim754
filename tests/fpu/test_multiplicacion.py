@@ -1,4 +1,4 @@
-"""Multiplicador de mantisas y FMUL (responsable: Fabricio). Issues #18 y #19."""
+"""Multiplicador de mantisas y FMUL. Issues #18 y #19."""
 
 from __future__ import annotations
 

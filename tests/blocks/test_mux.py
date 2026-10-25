@@ -1,4 +1,4 @@
-"""Multiplexores de bus (responsable: Ronald). Issue #10."""
+"""Multiplexores de bus. Issue #10."""
 
 from __future__ import annotations
 

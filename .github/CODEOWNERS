@@ -1,5 +1,5 @@
-# Dueños por módulo (ver EQUIPO.md). GitHub solicita automáticamente su revisión en cada
-# PR; para integrar se exige 1 aprobación de otro integrante (protección de main).
+# Dueños por módulo (ver interno/equipo/EQUIPO.md). GitHub solicita su revisión en cada PR;
+# la protección de main exige la integración continua en verde.
 
 *                               @Hector-0-0
 

@@ -4,6 +4,25 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-10-25 (tarde) · Interfaz pulida y repositorio listo para la exposición
+
+**Hecho**
+- PR #48 (interpretación RCA/CLA) cerrado sin integrar: el trabajo es individual.
+- Vista de transistores: lienzo claro, etiquetas medidas para que no se corten, nodos
+  nombrados por los puertos de la celda y vista de bloque en un solo plano (hasta 2 500
+  transistores; `align` dibuja sus 172 celdas en ~0,4 s).
+- Pestaña Operación con tablas; pestaña Programa con una breve explicación.
+- Limpieza: material de equipo a `interno/equipo/`, prompts y scripts de issues
+  eliminados (quedan en el historial de git), referencias a responsables quitadas del
+  código y de las pruebas, respaldo con la referencia quitado del CLI.
+- Registro de IA completado con las sesiones del 10 y del 25 de octubre.
+
+**Decisiones**
+- La pestaña Programa se mantiene: no la pide el enunciado, pero muestra la FPU dentro de
+  una CPU (tema de la investigación), está probada y quitarla no simplifica el núcleo.
+
+---
+
 ## 2026-10-25 · Vista de transistores, ciclos estimados y antecedentes históricos
 
 **Hecho**

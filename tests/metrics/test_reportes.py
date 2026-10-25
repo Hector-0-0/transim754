@@ -1,4 +1,4 @@
-"""Reportes de métricas (responsable: Yenny). Issue #24."""
+"""Reportes de métricas. Issue #24."""
 
 from __future__ import annotations
 

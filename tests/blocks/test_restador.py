@@ -1,4 +1,4 @@
-"""Sumador/restador en complemento a 2 (responsable: Ronald). Issue #8."""
+"""Sumador/restador en complemento a 2. Issue #8."""
 
 from __future__ import annotations
 

@@ -127,15 +127,13 @@ MODULOS: dict[str, Modulo] = {
         [],
         ["src/transim/reference"],
     ),
-    "cells": Modulo(
-        "Celdas L1 (Jairo)", ["tests/cells"], [1, 2, 3, 4, 5, 6], ["src/transim/cells"], []
-    ),
+    "cells": Modulo("Celdas L1", ["tests/cells"], [1, 2, 3, 4, 5, 6], ["src/transim/cells"], []),
     "blocks": Modulo(
-        "Bloques L2 (Ronald)", ["tests/blocks"], [7, 8, 9, 10, 11, 12, 14], ["src/transim/blocks"]
+        "Bloques L2", ["tests/blocks"], [7, 8, 9, 10, 11, 12, 14], ["src/transim/blocks"]
     ),
-    "alu": Modulo("ALU entera (Ronald)", ["tests/alu"], [13], ["src/transim/alu"]),
+    "alu": Modulo("ALU entera", ["tests/alu"], [13], ["src/transim/alu"]),
     "fpu-addsub": Modulo(
-        "FPU común y FADD/FSUB (Daniel)",
+        "FPU común y FADD/FSUB",
         [
             "tests/fpu/test_formato.py",
             "tests/fpu/test_codec_especiales.py",
@@ -151,16 +149,16 @@ MODULOS: dict[str, Modulo] = {
         ],
     ),
     "fpu-muldiv": Modulo(
-        "FMUL/FDIV (Fabricio)",
+        "FMUL/FDIV",
         ["tests/fpu/test_multiplicacion.py", "tests/fpu/test_division.py"],
         [18, 19, 20, 21],
         ["src/transim/fpu/mul.py", "src/transim/fpu/div.py"],
     ),
-    "metrics": Modulo("Métricas (Yenny)", ["tests/metrics"], [22, 23, 24], ["src/transim/metrics"]),
-    "gui": Modulo("GUI (Yenny)", ["tests/ui/test_gui.py"], [25, 26], ["src/transim/ui/gui"]),
-    "cpu": Modulo("CPU T754 (Héctor)", ["tests/cpu"], [29, 30], ["src/transim/cpu"]),
-    "cli": Modulo("CLI (Héctor)", ["tests/ui/test_cli.py"], [31], ["src/transim/ui/cli.py"]),
-    "ai": Modulo("Asistente (Héctor)", ["tests/assistant"], [32], ["src/transim/assistant"]),
+    "metrics": Modulo("Métricas", ["tests/metrics"], [22, 23, 24], ["src/transim/metrics"]),
+    "gui": Modulo("GUI", ["tests/ui/test_gui.py"], [25, 26], ["src/transim/ui/gui"]),
+    "cpu": Modulo("CPU T754", ["tests/cpu"], [29, 30], ["src/transim/cpu"]),
+    "cli": Modulo("CLI", ["tests/ui/test_cli.py"], [31], ["src/transim/ui/cli.py"]),
+    "ai": Modulo("Asistente", ["tests/assistant"], [32], ["src/transim/assistant"]),
 }
 CIRCUITOS: dict[str, Callable[[], list[tuple[str, Callable[[], object]]]]] = {
     "cells": _circuitos_cells,

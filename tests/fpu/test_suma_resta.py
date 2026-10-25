@@ -1,4 +1,4 @@
-"""FADD/FSUB en transistores (responsable: Daniel). Issue #17.
+"""FADD/FSUB en transistores. Issue #17.
 
 Criterio de aceptación: binary32 con todos los pares borde (> 200) y 10 000 pares
 aleatorios, 0 discrepancias bit a bit (incluidos los flags) contra el oráculo.
