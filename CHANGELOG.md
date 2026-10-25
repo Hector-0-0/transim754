@@ -13,6 +13,20 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   periodo ajustable y conmutaciones por etapa (ADR-0014, `metrics/stages.py`).
 - Antecedentes históricos en la investigación: del transistor de contacto puntual al
   MOSFET, la lógica CMOS y el estándar IEEE 754.
+- Vista de bloque: un bloque de hasta 2 500 transistores se dibuja con todas sus celdas
+  en un mismo plano; las etiquetas usan los puertos de cada celda y el lienzo es claro
+  también con el tema oscuro.
+
+### Cambiado
+- La pestaña Operación muestra ciclos, actividad por etapa y buses `dbg_` en tablas.
+- El material de organización del equipo (reparto, flujo de contribución, lista de tareas
+  y guías por módulo) pasa a `interno/equipo/`.
+- El CLI ya no contiene el respaldo con el modelo de referencia: todas las unidades
+  están integradas.
+
+### Eliminado
+- `interno/prompts/` y los scripts de creación y asignación de issues, que solo servían
+  para organizar el trabajo en equipo.
 
 ## [0.1.0-avance] — 2026-10-10
 

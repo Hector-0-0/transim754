@@ -57,12 +57,12 @@ flowchart BT
 | [Simulador switch-level](docs/02_simulador_switch_level.md) | modelo del transistor y algoritmo |
 | [IEEE 754](docs/03_ieee754.md) | formatos, redondeo, flags y 6 ejemplos resueltos bit a bit |
 | [ISA T754](docs/04_isa_t754.md) | instrucciones, codificación y ensamblador |
-| [Métricas](docs/05_metricas.md) | transistores, actividad y camino crítico |
+| [Métricas](docs/05_metricas.md) | transistores, actividad, camino crítico y ciclos estimados |
 | [Política de IA](docs/06_politica_ia.md) | uso de IA en el software y en el desarrollo |
-| [ADR](docs/adr/README.md) | las 13 decisiones de diseño |
+| [ADR](docs/adr/README.md) | las 14 decisiones de diseño |
 | [Glosario](docs/GLOSARIO.md) | términos técnicos |
 | [Investigación](docs/investigacion/transistores_en_cpus.md) | transistores en las CPU |
-| [Equipo](EQUIPO.md) · [Cómo contribuir](CONTRIBUTING.md) | organización y flujo de trabajo |
+| [Diapositivas de la exposición](docs/exposicion/diapositivas.md) | material de la presentación |
 
 ## Equipo
 
