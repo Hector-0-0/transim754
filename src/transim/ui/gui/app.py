@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -60,7 +61,10 @@ from transim.metrics.stages import (
     schedule,
 )
 from transim.reference import fpu as ref
-from transim.ui.gui.transistor_view import CellScene, ZoomView
+from transim.ui.gui.transistor_view import CellScene, ZoomView, spec_for_cell, spec_for_instance
+
+BLOCK_LIMIT = 2500
+"""Transistores máximos de un bloque para dibujarlo completo en un plano."""
 
 TITLE = "TranSim754 — procesador IEEE 754 de transistores simulados"
 OPERATIONS = {"+  suma": "add", "−  resta": "sub", "×  multiplicación": "mul", "÷  división": "div"}
@@ -155,32 +159,68 @@ def calculate(fmt: FloatFormat, op: str, a: int, b: int, engine: EngineName) -> 
     )
 
 
-def cycles_report(netlist: Netlist, period: int, stage_toggles: dict[str, int]) -> str:
-    """Texto de la consola de ciclos (ADR-0014): el camino crítico repartido en ciclos de
-    ``period`` celdas y las conmutaciones de cada etapa en la última operación."""
+def cycle_groups(netlist: Netlist, period: int) -> tuple[int, list[tuple[str, str, str]]]:
+    """Ciclos de ADR-0014 agrupados cuando ocupan las mismas etapas.
+
+    Returns:
+        (celdas del camino crítico, filas ``(ciclos, celdas, etapas)``).
+    """
     stages = critical_stages(netlist)
-    total = sum(st.cells for st in stages)
     cycles = schedule(stages, period)
-    lines = [
-        f"{netlist.name} · camino crítico: {total} celdas",
-        f"Periodo de reloj: {period} celdas → {len(cycles)} ciclos (estimado, ADR-0014)",
-        "",
-    ]
+    rows = []
     i = 0
     while i < len(cycles):
         j = i
         while j + 1 < len(cycles) and cycles[j + 1].stages == cycles[i].stages:
             j += 1
         first, last = cycles[i], cycles[j]
-        which = f"Ciclo {first.index}" if i == j else f"Ciclos {first.index}–{last.index}"
-        cells = f"celdas {first.first_cell}–{last.last_cell}"
-        lines.append(f"{which:<14} {cells:<18} {' · '.join(first.stages)}")
+        which = str(first.index) if i == j else f"{first.index}–{last.index}"
+        rows.append((which, f"{first.first_cell}–{last.last_cell}", " · ".join(first.stages)))
         i = j + 1
+    return sum(st.cells for st in stages), rows
+
+
+def cycles_report(netlist: Netlist, period: int, stage_toggles: dict[str, int]) -> str:
+    """Texto de la consola de ciclos (ADR-0014): el camino crítico repartido en ciclos de
+    ``period`` celdas y las conmutaciones de cada etapa en la última operación."""
+    total, groups = cycle_groups(netlist, period)
+    n_cycles = len(schedule(critical_stages(netlist), period))
+    lines = [
+        f"{netlist.name} · camino crítico: {total} celdas",
+        f"Periodo de reloj: {period} celdas → {n_cycles} ciclos (estimado, ADR-0014)",
+        "",
+    ]
+    for which, cells, stages in groups:
+        label = f"Ciclo {which}" if "–" not in which else f"Ciclos {which}"
+        lines.append(f"{label:<14} celdas {cells:<11} {stages}")
     if stage_toggles:
         lines += ["", "Conmutaciones por etapa en esta operación:"]
         for name, n in sorted(stage_toggles.items(), key=lambda kv: -kv[1]):
             lines.append(f"  {STAGE_NAMES.get(name, name):<28} {n:>7}")
     return "\n".join(lines)
+
+
+def _table(headers: list[str]) -> QTableWidget:
+    """Tabla de solo lectura con columnas ajustadas y texto que se parte en líneas."""
+    table = QTableWidget(0, len(headers))
+    table.setHorizontalHeaderLabels(headers)
+    table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+    table.verticalHeader().setVisible(False)
+    table.setWordWrap(True)
+    header = table.horizontalHeader()
+    for col in range(len(headers) - 1):
+        header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
+    header.setSectionResizeMode(len(headers) - 1, QHeaderView.ResizeMode.Stretch)
+    return table
+
+
+def _fill(table: QTableWidget, rows: list[list[str]]) -> None:
+    """Reemplaza las filas de ``table``."""
+    table.setRowCount(len(rows))
+    for r, row in enumerate(rows):
+        for c, text in enumerate(row):
+            table.setItem(r, c, QTableWidgetItem(text))
+    table.resizeRowsToContents()
 
 
 def parse_operand(text: str, fmt: FloatFormat) -> int:
@@ -239,8 +279,8 @@ class OperationTab(QWidget):
         self.bits.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.bits.setFont(_mono())
         self.bits.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.bits.setMinimumHeight(130)
-        self.bits.setMaximumHeight(150)
+        self.bits.setSizeAdjustPolicy(QTableWidget.SizeAdjustPolicy.AdjustToContents)
+        self.bits.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         bits_box = QGroupBox("Bits (signo | exponente | fracción)")
         bits_layout = QVBoxLayout()
         bits_layout.addWidget(self.bits)
@@ -250,9 +290,6 @@ class OperationTab(QWidget):
         self.metrics = {
             k: QLabel("—") for k in ("transistores", "conmutaciones", "eventos", "tiempo")
         }
-        self.stages = QPlainTextEdit()
-        self.stages.setReadOnly(True)
-        self.stages.setFont(_mono())
         summary = QFormLayout()
         summary.addRow("Flags", self.flags)
         summary.addRow("Transistores", self.metrics["transistores"])
@@ -262,32 +299,35 @@ class OperationTab(QWidget):
         summary.addRow(QLabel("<small>* respecto de la operación anterior</small>"))
         summary_box = QGroupBox("Resultado")
         summary_box.setLayout(summary)
-        stages_box = QGroupBox("Etapas (buses dbg_ de la unidad)")
-        stages_layout = QVBoxLayout()
-        stages_layout.addWidget(self.stages)
-        stages_box.setLayout(stages_layout)
 
+        # Detalle de la operación en pestañas: ciclos, actividad y buses de etapa.
         self.period = QSpinBox()
         self.period.setRange(1, 1000)
         self.period.setValue(reference_period())
         self.period.setSuffix(" celdas")
         self.period.valueChanged.connect(self._show_cycles)
-        self.cycles = QPlainTextEdit()
-        self.cycles.setReadOnly(True)
-        self.cycles.setFont(_mono())
-        self.cycles.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self.cycles_summary = QLabel("Calcule una operación para ver sus ciclos.")
+        self.cycles = _table(["Ciclo", "Celdas del camino crítico", "Etapas que ocupa"])
         period_row = QHBoxLayout()
-        period_row.addWidget(QLabel("Periodo de reloj (por defecto, la ALU entera):"))
+        period_row.addWidget(self.cycles_summary, 1)
+        period_row.addWidget(QLabel("Periodo de reloj:"))
         period_row.addWidget(self.period)
-        period_row.addStretch(1)
-        cycles_box = QGroupBox("Ciclos de reloj estimados a partir del camino crítico")
-        cycles_layout = QVBoxLayout()
+        cycles_page = QWidget()
+        cycles_layout = QVBoxLayout(cycles_page)
         cycles_layout.addLayout(period_row)
         cycles_layout.addWidget(self.cycles)
-        cycles_box.setLayout(cycles_layout)
-        bottom = QHBoxLayout()
-        bottom.addWidget(stages_box, 1)
-        bottom.addWidget(cycles_box, 3)
+        cycles_layout.addWidget(
+            QLabel(
+                "<small>Estimación de ADR-0014: cada celda cuesta una unidad de retardo; el "
+                "periodo por defecto es el camino crítico de la ALU entera.</small>"
+            )
+        )
+        self.activity = _table(["Etapa", "Conmutaciones de nodo", "% del total"])
+        self.stages = _table(["Bus", "Valor (hex)"])
+        self.details = QTabWidget()
+        self.details.addTab(cycles_page, "Ciclos de reloj")
+        self.details.addTab(self.activity, "Actividad por etapa")
+        self.details.addTab(self.stages, "Buses de etapa (dbg_)")
 
         top = QHBoxLayout()
         top.addWidget(inputs, 1)
@@ -295,7 +335,7 @@ class OperationTab(QWidget):
         layout = QVBoxLayout(self)
         layout.addLayout(top)
         layout.addWidget(bits_box)
-        layout.addLayout(bottom, 1)
+        layout.addWidget(self.details, 1)
 
     def run(self) -> None:
         """Lee la entrada y lanza el cálculo en un hilo de trabajo."""
@@ -336,19 +376,30 @@ class OperationTab(QWidget):
         self.metrics["conmutaciones"].setText(str(calc.toggles))
         self.metrics["eventos"].setText(str(calc.events))
         self.metrics["tiempo"].setText(f"{calc.seconds * 1000:.1f} ms")
-        self.stages.setPlainText(
-            "\n".join(f"{k:<14} {'X' if v is None else hex(v)}" for k, v in calc.stages.items())
-            or "(la unidad no expone etapas)"
+        _fill(self.stages, [[k, "X" if v is None else f"0x{v:X}"] for k, v in calc.stages.items()])
+        total = sum(calc.stage_toggles.values()) or 1
+        _fill(
+            self.activity,
+            [
+                [STAGE_NAMES.get(name, name), str(n), f"{100 * n / total:.1f} %"]
+                for name, n in sorted(calc.stage_toggles.items(), key=lambda kv: -kv[1])
+            ],
         )
         self.last = calc
         self._show_cycles()
         self.calculated.emit(calc)
 
     def _show_cycles(self) -> None:
-        if self.last is not None:
-            self.cycles.setPlainText(
-                cycles_report(self.last.unit.netlist, self.period.value(), self.last.stage_toggles)
-            )
+        if self.last is None:
+            return
+        netlist = self.last.unit.netlist
+        total, groups = cycle_groups(netlist, self.period.value())
+        count = len(schedule(critical_stages(netlist), self.period.value()))
+        self.cycles_summary.setText(
+            f"<b>{netlist.name}</b>: camino crítico de {total} celdas → <b>{count} ciclos</b> "
+            "estimados"
+        )
+        _fill(self.cycles, [list(g) for g in groups])
 
     def _failed(self, message: str) -> None:
         self.run_button.setEnabled(True)
@@ -382,7 +433,13 @@ class ProgramTab(QWidget):
         self.regs = QTableWidget(isa.N_REGS, 2)
         self.regs.setHorizontalHeaderLabels(["hex", "valor"])
         self.regs.setVerticalHeaderLabels([f"F{i}" for i in range(isa.N_REGS)])
-        self.status = QLabel("Sin programa cargado.")
+        self.regs.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.regs.setFont(_mono())
+        self.regs.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        for r in range(isa.N_REGS):
+            for c in range(2):
+                self.regs.setItem(r, c, QTableWidgetItem("—"))
+        self.status = QLabel("Sin programa cargado: pulse «Ensamblar y reiniciar».")
         self.outputs = QListWidget()
         right = QVBoxLayout()
         right.addWidget(QLabel("<b>Registros</b>"))
@@ -391,7 +448,13 @@ class ProgramTab(QWidget):
         right.addWidget(QLabel("<b>Salidas (OUT)</b>"))
         right.addWidget(self.outputs)
 
+        intro = QLabel(
+            "La FPU dentro de una CPU: el programa se ensambla y se ejecuta en la máquina "
+            "T754, con el decodificador, el banco de registros y la FPU de transistores."
+        )
+        intro.setWordWrap(True)
         left = QVBoxLayout()
+        left.addWidget(intro)
         left.addWidget(self.source)
         left.addLayout(buttons)
         layout = QHBoxLayout(self)
@@ -524,20 +587,24 @@ class TransistorTab(QWidget):
         self.sources = QTabWidget()
         self.sources.addTab(library, "Biblioteca")
         self.sources.addTab(self.tree, "Última operación")
-        fit = QPushButton("Ajustar vista")
+        fit = QPushButton("Ajustar")
         fit.clicked.connect(self.view.fit)
+        zoom_in, zoom_out = QPushButton("+"), QPushButton("−")
+        zoom_in.clicked.connect(self.view.zoom_in)
+        zoom_out.clicked.connect(self.view.zoom_out)
         legend = QLabel(
-            "<span style='color:#1f9d55'>■</span> conduce · "
-            "<span style='color:#b8bcc2'>■</span> no conduce · "
-            "<span style='color:#d64545'>1</span> / <span style='color:#2f6fd6'>0</span> / "
-            "<span style='color:#e0a100'>X</span> valor del nodo · rueda: zoom"
+            "<span style='color:#1e8e3e'>■</span> conduce · "
+            "<span style='color:#bdc1c6'>■</span> no conduce · "
+            "<span style='color:#c62828'>1</span> / <span style='color:#1a5fd0'>0</span> / "
+            "<span style='color:#c77700'>X</span> valor del nodo · arrastre para moverse"
         )
         right = QVBoxLayout()
         right.addWidget(self.info)
         right.addWidget(self.view, 1)
         bar = QHBoxLayout()
         bar.addWidget(legend, 1)
-        bar.addWidget(fit)
+        for button in (zoom_out, zoom_in, fit):
+            bar.addWidget(button)
         right.addLayout(bar)
         layout = QHBoxLayout(self)
         layout.addWidget(self.sources, 2)
@@ -570,12 +637,7 @@ class TransistorTab(QWidget):
         outs = "  ".join(f"{p} = {self.engine.read(p).name}" for p in self.cell.outputs)
         self.outputs.setText(outs.replace("ZERO", "0").replace("ONE", "1"))
         n = len(self.cell.transistors)
-        self.scene.draw(
-            self.cell.transistors,
-            self.engine.value,
-            self.engine.conduction,
-            title=f"{self.cell.name} · {n} transistores",
-        )
+        self.scene.draw_cells([spec_for_cell(self.cell)], self.engine.value, self.engine.conduction)
         self.info.setText(
             f"Celda {self.cell.name}: {self.scene.flowing} de {n} transistores conducen con "
             "estas entradas. Cambie una entrada para ver qué transistores conmutan."
@@ -649,25 +711,29 @@ class TransistorTab(QWidget):
             return
         engine = self.unit.engine
         toggles = instance_toggles(engine, inst)
-        if not inst.is_leaf:
+        n = len(inst.transistors)
+        if inst.is_leaf:
+            cells = [inst]
+        elif n <= BLOCK_LIMIT:
+            cells = [
+                c for c in self.unit.netlist.leaf_instances() if c.path.startswith(f"{inst.path}.")
+            ]
+        else:
             self.info.setText(
-                f"{inst.path}: bloque {inst.definition.name} con {len(inst.transistors)} "
-                f"transistores y {toggles} conmutaciones en la última operación. "
-                "Expándalo hasta una celda para ver sus transistores."
+                f"{inst.path}: bloque {inst.definition.name} con {n} transistores y {toggles} "
+                f"conmutaciones en la última operación. Es demasiado grande para un solo plano "
+                f"(más de {BLOCK_LIMIT} transistores): expándalo y elija una parte."
             )
             return
-        self.scene.draw(
-            inst.transistors,
-            engine.value,
-            engine.conduction,
-            prefix=f"{inst.path}.",
-            title=f"{inst.path} · {inst.definition.name}",
-        )
+        base = "" if inst.is_leaf else f"{inst.path}."
+        specs = [spec_for_instance(c, base) for c in cells]
+        self.scene.draw_cells(specs, engine.value, engine.conduction)
         self.view.fit()
+        what = "celda" if inst.is_leaf else f"bloque de {len(cells)} celdas"
         self.info.setText(
-            f"{inst.path} ({inst.definition.name}) en la última operación: "
-            f"{self.scene.flowing} de {len(inst.transistors)} transistores conducen; "
-            f"{toggles} conmutaciones de sus nodos."
+            f"{inst.path} ({inst.definition.name}, {what}) en la última operación: "
+            f"{self.scene.flowing} de {n} transistores conducen; {toggles} conmutaciones de "
+            "sus nodos. Arrastre para moverse y use la rueda o los botones para el zoom."
         )
 
 
