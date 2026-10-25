@@ -34,6 +34,14 @@ RCA de N bits la profundidad crece linealmente con N (la cadena de acarreos); en
 crece de forma logarítmica. La métrica no distingue celdas rápidas de lentas: es una
 aproximación de primer orden.
 
+### 3.1 Ciclos de reloj estimados
+
+A partir de la profundidad se estiman ciclos de reloj (ADR-0014): el camino crítico se
+agrupa por etapa del datapath y se reparte en ciclos de un periodo fijo en celdas, que
+por defecto es el camino crítico de la ALU entera de 32 bits (39 celdas). Con ese
+periodo, FADD/FSUB y FMUL de binary32 ocupan 5 ciclos y FDIV, 22. La pestaña Operación
+de la GUI muestra el reparto y las conmutaciones de cada etapa (`metrics/stages.py`).
+
 ## 4. Conteo esperado de las celdas base
 
 Estos valores corresponden a los diseños de la biblioteca de celdas y se verifican en
