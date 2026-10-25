@@ -10,14 +10,86 @@ Una unidad central de procesamiento (CPU) moderna es, en su nivel más bajo, una
 miles de millones de transistores que se comportan como interruptores controlados por
 tensión. Las operaciones aritméticas que un programador escribe en una línea, como
 `x = a + b` sobre números en punto flotante, se resuelven mediante la conmutación
-coordinada de miles de esos interruptores. Este documento recorre ese camino en cinco
-pasos: el transistor MOSFET como dispositivo físico (sección 1), su uso como interruptor
-en la lógica CMOS (sección 2), la composición jerárquica de compuertas hasta formar una
-CPU (sección 3), la evolución tecnológica del transistor y su escalamiento (secciones 4
-y 5) y el costo energético de conmutar (sección 6). La sección 7 resume qué aspectos de
-esa realidad reproduce TranSim754 y cuáles simplifica de forma deliberada.
+coordinada de miles de esos interruptores. Este documento recorre ese camino en seis
+pasos: los antecedentes históricos del transistor y del circuito integrado (sección 1),
+el transistor MOSFET como dispositivo físico (sección 2), su uso como interruptor en la
+lógica CMOS (sección 3), la composición jerárquica de compuertas hasta formar una CPU
+(sección 4), la evolución tecnológica del transistor y su escalamiento (secciones 5 y 6)
+y el costo energético de conmutar (sección 7). La sección 8 resume qué aspectos de esa
+realidad reproduce TranSim754 y cuáles simplifica de forma deliberada.
 
-## 1. El transistor MOSFET
+## 1. Antecedentes: de la válvula de vacío al circuito integrado
+
+### 1.1. La válvula de vacío
+
+Antes del transistor, la amplificación y la conmutación electrónicas dependían de las
+válvulas de vacío, derivadas del diodo termoiónico que John Ambrose Fleming patentó en
+1904. Eran voluminosas, frágiles y consumían mucha energía, porque necesitaban un
+filamento caliente para emitir electrones. Durante la Segunda Guerra Mundial, el
+desarrollo de detectores de cristal de germanio y silicio para el radar dio a los
+laboratorios un conocimiento práctico de los semiconductores que resultaría decisivo
+(Riordan y Hoddeson, 1997).
+
+### 1.2. El transistor de contacto puntual (1947)
+
+En diciembre de 1947, John Bardeen y Walter Brattain, del grupo de física del estado
+sólido que dirigía William Shockley en los Laboratorios Bell, lograron amplificar una
+señal con un dispositivo de estado sólido: dos contactos de oro muy próximos sobre un
+cristal de germanio (Computer History Museum, s. f.-a). El nombre "transistor" lo
+propuso el ingeniero John R. Pierce, y el invento se anunció públicamente el 30 de junio
+de 1948. Shockley concibió poco después el transistor de unión, más robusto y fácil de
+fabricar. Los tres recibieron el Premio Nobel de Física en 1956 (Riordan y Hoddeson,
+1997). Frente a la válvula, el transistor no necesitaba filamento ni vacío: su
+funcionamiento dependía del propio material semiconductor, lo que redujo de forma
+drástica el tamaño, el consumo y el costo de los circuitos.
+
+### 1.3. El transistor de efecto de campo y el MOSFET (1959)
+
+La idea de controlar la conductividad de un material con un campo eléctrico es anterior
+al transistor: Julius Edgar Lilienfeld la patentó en la década de 1920 (Lilienfeld,
+1930), pero la tecnología de la época no permitía fabricar un dispositivo funcional. En
+1959, Mohamed Atalla y Dawon Kahng, también en los Laboratorios Bell, construyeron el
+primer transistor de efecto de campo metal-óxido-semiconductor (MOSFET), apoyados en el
+trabajo de Atalla sobre la pasivación de la superficie del silicio con una capa de óxido
+crecida térmicamente; lo presentaron en 1960 (Computer History Museum, s. f.-c). Al
+principio era más lento que el transistor bipolar, pero su estructura plana y su
+facilidad de integración lo convirtieron, con el tiempo, en el dispositivo base de los
+circuitos integrados digitales (Weste y Harris, 2011).
+
+### 1.4. El circuito integrado y la lógica CMOS (1958–1963)
+
+En 1958, Jack Kilby, de Texas Instruments, demostró un circuito con varios componentes
+en un mismo bloque de germanio; en 1959, Robert Noyce, de Fairchild Semiconductor,
+solicitó la patente del circuito integrado monolítico en silicio, con interconexiones
+fabricadas por el proceso planar, que es la base de la fabricación actual
+(Riordan y Hoddeson, 1997).
+
+En febrero de 1963, Frank Wanlass y Chih-Tang Sah, de Fairchild, presentaron en la
+International Solid-State Circuits Conference la lógica que combina transistores pMOS y
+nMOS en una configuración complementaria y que consume una potencia casi nula en reposo
+(Wanlass y Sah, 1963). Wanlass patentó la técnica ese mismo año, y la patente se
+concedió en 1967. RCA comercializó los primeros circuitos CMOS a finales de la década
+de 1960, bajo la marca COS/MOS, para aplicaciones donde el bajo consumo era crítico
+(Computer History Museum, s. f.-b).
+
+CMOS no dominó de inmediato. Los microprocesadores de los años setenta, como el Intel
+8080, el Zilog Z80 o el Motorola 68000, se fabricaron con tecnología NMOS, más densa y
+rápida en los procesos de entonces. CMOS se impuso en la década de 1980, cuando el
+aumento de la densidad hizo del consumo estático de NMOS un límite, y desde entonces es
+la tecnología de prácticamente todos los procesadores y memorias (Weste y Harris, 2011).
+
+### 1.5. La aritmética de punto flotante y el estándar IEEE 754
+
+Hasta finales de la década de 1970, cada fabricante usaba su propio formato de punto
+flotante, con reglas de redondeo y casos especiales distintos, de modo que un mismo
+programa podía dar resultados diferentes en dos computadoras. En 1977 se formó en el
+IEEE el comité que, con William Kahan, de la Universidad de California en Berkeley,
+como principal arquitecto, redactó el estándar IEEE 754, aprobado en 1985 (IEEE
+Milestones, s. f.). Kahan recibió el Premio Turing en 1989 por este trabajo (ACM, s. f.).
+El estándar se revisó en 2008 y en 2019 (IEEE, 2019), y es el que implementa la FPU de
+TranSim754.
+
+## 2. El transistor MOSFET
 
 El transistor de efecto de campo metal-óxido-semiconductor (MOSFET) es un dispositivo
 de cuatro terminales: compuerta (*gate*), fuente (*source*), drenador (*drain*) y
@@ -59,7 +131,7 @@ de conducción según el valor de su compuerta: conduce, no conduce o incierto s
 compuerta vale X (ADR-0007). No hay tensión umbral, regiones de operación ni movilidad:
 el simulador es de nivel de interruptor (*switch-level*).
 
-## 2. Del transistor al interruptor: lógica CMOS
+## 3. Del transistor al interruptor: lógica CMOS
 
 La lógica CMOS (*complementary MOS*) combina en cada compuerta una **red pull-up** de
 pMOS, que conecta la salida a la alimentación V_DD, y una **red pull-down** de nMOS, que
@@ -92,7 +164,7 @@ de memoria.
 
 Una propiedad clave de CMOS es su **consumo estático casi nulo**: en reposo no existe un
 camino conductor entre V_DD y tierra, y la energía se gasta principalmente al conmutar
-(sección 6). Esta propiedad explica el dominio de CMOS desde la década de 1980.
+(sección 7). Esta propiedad explica el dominio de CMOS desde la década de 1980.
 
 **En TranSim754.** El modelo de Bryant (1984) representa cada nodo con un valor lógico
 {0, 1, X, Z} y una fuerza (alimentación, manejado o carga retenida); la salida de una
@@ -101,7 +173,7 @@ celdas de la biblioteca L1 son exactamente las redes CMOS descritas: INV de 2
 transistores, NAND2 y NOR2 de 4, XOR2 complementario de 12, MUX2 restaurador de 12 con
 transmission gates y sumador completo espejo de 28.
 
-## 3. De las compuertas a la CPU
+## 4. De las compuertas a la CPU
 
 Una CPU se construye por **composición jerárquica**: transistores forman compuertas,
 compuertas forman bloques aritméticos y de memoria, y esos bloques forman la ruta de
@@ -133,9 +205,9 @@ FPU) y la máquina T754 de L4. La FPU de binary32 suma 13 974 transistores en FA
 cifras pequeñas frente a un chip comercial, pero suficientes para que la aritmética
 IEEE 754 completa ocurra literalmente en transistores.
 
-## 4. Evolución de la tecnología del transistor
+## 5. Evolución de la tecnología del transistor
 
-### 4.1. MOSFET planar y escalamiento de Dennard
+### 5.1. MOSFET planar y escalamiento de Dennard
 
 Durante décadas el transistor fue **planar**: un canal en la superficie del silicio
 controlado por una compuerta desde arriba. Dennard et al. (1974) formularon las reglas
@@ -144,7 +216,7 @@ por un factor κ, la densidad crece en κ², el retardo baja en κ y la **densid
 potencia se mantiene constante**. Cada generación ofrecía más transistores, más rápidos
 y sin aumentar el consumo por unidad de área (Bohr, 2007).
 
-### 4.2. Fin del escalamiento de Dennard
+### 5.2. Fin del escalamiento de Dennard
 
 Hacia mediados de la década de 2000 la tensión de alimentación dejó de bajar al ritmo
 previsto. La tensión umbral no puede reducirse indefinidamente sin que la corriente de
@@ -154,7 +226,7 @@ aumentó y la frecuencia de reloj dejó de crecer. La industria respondió con
 procesadores multinúcleo y, más tarde, con la especialización del hardware
 (Esmaeilzadeh et al., 2011).
 
-### 4.3. FinFET
+### 5.3. FinFET
 
 Al reducir la longitud del canal, la compuerta planar pierde control sobre él: el
 drenador influye en la barrera de potencial (efectos de canal corto) y la fuga aumenta.
@@ -163,7 +235,7 @@ tres lados, lo que mejora el control electrostático (Hisamoto et al., 2000). In
 llevó a producción en su proceso de 22 nm con el nombre *tri-gate* (Auth et al., 2012),
 y desde entonces fue la estructura dominante de los nodos avanzados.
 
-### 4.4. GAA o nanosheet
+### 5.4. GAA o nanosheet
 
 El paso siguiente es la compuerta que **rodea por completo** el canal
 (*gate-all-around*, GAA), formada por láminas de silicio apiladas (*nanosheets*).
@@ -172,7 +244,7 @@ Samsung inició en 2022 la producción de su proceso de 3 nm con transistores GA
 18A (Intel, 2021) y TSMC adoptó nanosheets en su nodo N2. El control del canal por los
 cuatro lados permite seguir reduciendo dimensiones con fugas acotadas.
 
-### 4.5. Perspectivas
+### 5.5. Perspectivas
 
 La hoja de ruta internacional de dispositivos y sistemas (IRDS) prevé, tras las
 nanosheets, el **CFET** (*complementary FET*), que apila verticalmente el nMOS y el pMOS
@@ -184,7 +256,7 @@ hace años, "3 nm" o "2 nm" no corresponden a la longitud de la compuerta ni a n
 medida concreta del transistor: son etiquetas de generación que indican una mejora de
 densidad respecto de la anterior (IEEE IRDS, 2023).
 
-## 5. Escalamiento y ley de Moore
+## 6. Escalamiento y ley de Moore
 
 Moore (1965) observó que el número de componentes por circuito integrado de costo
 mínimo se duplicaba aproximadamente cada año y proyectó que la tendencia continuaría al
@@ -195,12 +267,12 @@ el costo por transistor; no es una ley física.
 La ley de Moore y el escalamiento de Dennard suelen confundirse, pero son distintos. La
 primera habla de **cuántos** transistores caben; el segundo explicaba por qué esos
 transistores eran además **más rápidos y no más costosos en potencia**. El escalamiento
-de Dennard terminó hacia 2005 (sección 4.2), mientras que la densidad siguió creciendo
+de Dennard terminó hacia 2005 (sección 5.2), mientras que la densidad siguió creciendo
 gracias a FinFET, GAA, litografía ultravioleta extrema y técnicas de empaquetado
 tridimensional, aunque a un ritmo y con un costo por transistor que ya no mejoran como
 antes (IEEE IRDS, 2023).
 
-## 6. Potencia
+## 7. Potencia
 
 La potencia de un circuito CMOS tiene dos componentes principales (Weste y Harris, 2011,
 cap. 5).
@@ -240,7 +312,7 @@ transistores (3 526 frente a 896) y una profundidad lógica de 19 celdas frente 
 (`docs/metricas/comparacion_sumadores.md`). Es el mismo compromiso entre área, velocidad
 y energía que enfrenta un diseñador real.
 
-## 7. Relación con TranSim754
+## 8. Relación con TranSim754
 
 | Fenómeno real | Cómo lo modela TranSim754 | Qué simplifica |
 |---|---|---|
@@ -263,6 +335,9 @@ del alcance del proyecto.
 
 ## Referencias
 
+ACM. (s. f.). *William Kahan: A. M. Turing Award laureate*. Recuperado el 25 de octubre de
+2026, de https://amturing.acm.org/award_winners/kahan_1023746.cfm
+
 Apple. (2023, 5 de junio). *Apple introduces M2 Ultra* [Comunicado de prensa].
 https://www.apple.com/newsroom/2023/06/apple-introduces-m2-ultra/
 
@@ -276,6 +351,15 @@ Solid-State Circuits Society Newsletter, 12*(1), 11–13. https://doi.org/10.110
 
 Bryant, R. E. (1984). A switch-level model and simulator for MOS digital systems.
 *IEEE Transactions on Computers, C-33*(2), 160–177. https://doi.org/10.1109/TC.1984.1676408
+
+Computer History Museum. (s. f.-a). *1947: Invention of the point-contact transistor*.
+The Silicon Engine. https://www.computerhistory.org/siliconengine/invention-of-the-point-contact-transistor/
+
+Computer History Museum. (s. f.-b). *1963: Complementary MOS circuit configuration is
+invented*. The Silicon Engine. https://www.computerhistory.org/siliconengine/complementary-mos-circuit-configuration-is-invented/
+
+Computer History Museum. (s. f.-c). *1960: Metal oxide semiconductor (MOS) transistor
+demonstrated*. The Silicon Engine. https://www.computerhistory.org/siliconengine/metal-oxide-semiconductor-mos-transistor-demonstrated/
 
 Dennard, R. H., Gaensslen, F. H., Yu, H.-N., Rideout, V. L., Bassous, E., & LeBlanc,
 A. R. (1974). Design of ion-implanted MOSFET's with very small physical dimensions.
@@ -294,6 +378,9 @@ https://doi.org/10.1109/16.887014
 IEEE. (2019). *IEEE standard for floating-point arithmetic* (IEEE Std 754-2019).
 https://doi.org/10.1109/IEEESTD.2019.8766229
 
+IEEE Milestones. (s. f.). *IEEE Standard 754 for binary floating-point arithmetic, 1985*.
+Engineering and Technology History Wiki. https://ethw.org/Milestones:IEEE_Standard_754_for_Binary_Floating-Point_Arithmetic,_1985
+
 IEEE IRDS. (2023). *International Roadmap for Devices and Systems: More Moore* (Ed.
 2023). IEEE. https://irds.ieee.org/editions/2023
 
@@ -305,6 +392,9 @@ https://www.intel.com/content/www/us/en/history/museum-story-of-intel-4004.html
 
 Koren, I. (2002). *Computer arithmetic algorithms* (2.ª ed.). A K Peters.
 
+Lilienfeld, J. E. (1930). *Method and apparatus for controlling electric currents* (Patente
+de EE. UU. N.º 1 745 175). Oficina de Patentes y Marcas de los Estados Unidos.
+
 Moore, G. E. (1965). Cramming more components onto integrated circuits. *Electronics,
 38*(8), 114–117.
 
@@ -314,9 +404,16 @@ Electron Devices Meeting, Technical Digest* (pp. 11–13). IEEE.
 Rabaey, J. M., Chandrakasan, A., & Nikolić, B. (2003). *Digital integrated circuits:
 A design perspective* (2.ª ed.). Pearson.
 
+Riordan, M., & Hoddeson, L. (1997). *Crystal fire: The birth of the information age*.
+W. W. Norton.
+
 Samsung Electronics. (2022, 30 de junio). *Samsung begins chip production using 3nm
 process technology with GAA architecture* [Comunicado de prensa].
 https://news.samsung.com/global/samsung-begins-chip-production-using-3nm-process-technology-with-gaa-architecture
+
+Wanlass, F. M., & Sah, C. T. (1963). Nanowatt logic using field-effect metal-oxide
+semiconductor triodes. En *1963 IEEE International Solid-State Circuits Conference,
+Digest of Technical Papers* (Vol. 6, pp. 32–33). IEEE.
 
 Weste, N. H. E., & Harris, D. M. (2011). *CMOS VLSI design: A circuits and systems
 perspective* (4.ª ed.). Addison-Wesley.
