@@ -30,6 +30,9 @@ PER_ROW = 7
 CELL_W, CELL_H = 180.0, 130.0
 """Espacio que ocupa cada símbolo de transistor."""
 
+INSET = 6.0
+"""Margen, en píxeles de escena, de la placa de compuerta y de las etiquetas de riel."""
+
 COLORS = {
     Logic.ZERO: QColor("#2f6fd6"),
     Logic.ONE: QColor("#d64545"),
@@ -96,7 +99,7 @@ class CellScene(QGraphicsScene):
             label.setPos(0, -40)
         for y, name in ((top - 20, "VDD"), (bottom + 20, "GND")):
             self.addLine(0, y, width, y, QPen(QColor("#555"), 3))
-            self.addSimpleText(name).setPos(width + 8, y - 8)
+            self.addSimpleText(name).setPos(width + INSET, y - INSET)
 
         for group, y0 in ((pmos, top), (nmos, top + CELL_H * p_rows + gap)):
             for i, t in enumerate(group):
@@ -122,7 +125,8 @@ class CellScene(QGraphicsScene):
         pen_channel = QPen(CHANNEL[state], 5)
         self.addLine(cx, ch_top, cx, ch_bot, pen_channel)
         # Placa de compuerta y su terminal; los pMOS llevan el círculo de inversión.
-        self.addLine(cx - 12, ch_top + 8, cx - 12, ch_bot - 8, QPen(QColor("#333"), 3))
+        plate = QPen(QColor("#333"), 3)
+        self.addLine(cx - 12, ch_top + INSET, cx - 12, ch_bot - INSET, plate)
         gate_end = cx - 12
         if t.kind is TransistorType.PMOS:
             bubble = QGraphicsEllipseItem(cx - 24, (ch_top + ch_bot) / 2 - 6, 12, 12)
