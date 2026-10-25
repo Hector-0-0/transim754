@@ -18,7 +18,9 @@ Universidad Nacional de Ingeniería, FIIS, 2026-II.
   binary32 con redondeo al par más cercano, subnormales, ±0, ±∞, NaN y los cinco flags.
 - Una CPU mínima con ISA propia (T754) ejecuta programas ensamblados desde texto.
 - Los resultados se verifican bit a bit contra numpy; se miden transistores,
-  conmutaciones y profundidad lógica.
+  conmutaciones, profundidad lógica y ciclos de reloj estimados (ADR-0014).
+- La GUI baja de los bloques de una unidad hasta cada nMOS y pMOS y muestra cuáles
+  conducen en la operación calculada.
 
 ## Demo en 3 comandos
 

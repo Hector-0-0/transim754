@@ -4,6 +4,30 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-10-25 · Vista de transistores, ciclos estimados y antecedentes históricos
+
+**Hecho**
+- Revisión de una propuesta alternativa del equipo (emulador web en JavaScript). Se
+  adoptan sus ideas compatibles con el diseño: vista de transistores con zoom, consola de
+  ciclos y antecedentes históricos de la investigación.
+- Pestaña Transistores en la GUI y consola de ciclos (ADR-0014): con periodo de 39
+  celdas, FADD/FSUB y FMUL de binary32 ocupan 5 ciclos y FDIV, 22.
+- Se descartan, con fundamento: un número fijo de ciclos por operación (no se deriva del
+  circuito), un "pool" de transistores que se reservan al operar (el hardware es fijo y
+  un tope de ~1 000 no alcanza para la FPU) y Docker con nginx (no hay archivos web que
+  servir; la aplicación es de escritorio y se instala con `make install`).
+
+**Errores propios detectados y corregidos**
+- La vista de transistores usaba el literal 8 en coordenadas de dibujo; lo detectó la
+  guarda de ADR-0001 en la suite completa, no en el gancho de pre-commit, que solo corría
+  las pruebas del módulo modificado. El gancho ahora ejecuta siempre esa guarda.
+
+**Correcciones a la propuesta alternativa incorporadas en la investigación**
+- CMOS se impuso en la década de 1980, no en la de 1970 (los microprocesadores de los
+  setenta eran NMOS). Se reemplazan las citas de Wikipedia por fuentes primarias.
+
+---
+
 ## 2026-10-10 · Implementación completa y avance v0.1.0
 
 **Hecho**

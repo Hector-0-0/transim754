@@ -5,6 +5,15 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Sin publicar]
 
+### Agregado
+- Pestaña Transistores en la GUI: dibuja cada nMOS y pMOS de una celda con el estado
+  real del motor (canal que conduce, valores de compuerta, fuente y drenador) y permite
+  bajar por la jerarquía de la unidad de la última operación hasta cada celda.
+- Ciclos de reloj estimados a partir del camino crítico, por etapa del datapath, con
+  periodo ajustable y conmutaciones por etapa (ADR-0014, `metrics/stages.py`).
+- Antecedentes históricos en la investigación: del transistor de contacto puntual al
+  MOSFET, la lógica CMOS y el estándar IEEE 754.
+
 ## [0.1.0-avance] — 2026-10-10
 
 Las cuatro operaciones IEEE 754 se calculan en transistores simulados y la máquina T754
