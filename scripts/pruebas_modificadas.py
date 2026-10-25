@@ -3,6 +3,8 @@
 Lo invoca el gancho de pre-commit con la lista de archivos Python preparados.
 Un archivo `src/transim/<modulo>/...` o `tests/<modulo>/...` activa `tests/<modulo>/`.
 Cualquier otro archivo Python (scripts, conftest, raíz) activa la suite rápida completa.
+La guarda de literales de ADR-0001 (`tests/test_literales.py`) se ejecuta siempre que
+cambie código de `src/`, porque recorre todos los módulos.
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 SIN_PRUEBAS = 5
+GUARDA_LITERALES = "tests/test_literales.py"
 
 
 def modulos_afectados(archivos: list[str]) -> set[str] | None:
@@ -35,6 +38,8 @@ def main() -> int:
         rutas = ["tests"]
     else:
         rutas = [f"tests/{m}" for m in sorted(modulos) if (RAIZ / "tests" / m).is_dir()]
+        if any(Path(a).parts[:1] == ("src",) for a in sys.argv[1:]):
+            rutas.append(GUARDA_LITERALES)
     if not rutas:
         return 0
     cmd = [sys.executable, "-m", "pytest", "-m", "not slow", "-q", "-x", *rutas]
