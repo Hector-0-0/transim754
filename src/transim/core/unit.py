@@ -17,13 +17,23 @@ from transim.core.netlist import Netlist
 
 EngineName = Literal["switch", "cached"]
 
+EVENTS_PER_NODE = 100
+"""Cambios de valor admitidos por nodo en cada estabilización de una unidad.
+
+En un modelo de retardo cero los nodos de una cadena larga cambian varias veces antes de
+estabilizarse (glitches): el divisor binary32 llega a unas 14 veces por nodo con
+operandos aleatorios. El margen de 100 sigue detectando un circuito que oscila de
+verdad, que no se estabiliza con ningún límite.
+"""
+
 
 def make_engine(netlist: Netlist, engine: EngineName = "cached") -> SwitchEngine:
     """Crea el motor ``engine`` ("switch" o "cached") para ``netlist``."""
+    budget = EVENTS_PER_NODE * len(netlist.nodes) + 1000
     if engine == "switch":
-        return SwitchEngine(netlist, max_events=10 * len(netlist.nodes) + 1000)
+        return SwitchEngine(netlist, max_events=budget)
     if engine == "cached":
-        return CachedEngine(netlist, max_events=10 * len(netlist.nodes) + 1000)
+        return CachedEngine(netlist, max_events=budget)
     raise ValueError(f"motor desconocido {engine!r}; use 'switch' o 'cached'")
 
 

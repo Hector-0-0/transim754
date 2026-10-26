@@ -155,7 +155,12 @@ MODULOS: dict[str, Modulo] = {
         ["src/transim/fpu/mul.py", "src/transim/fpu/div.py"],
     ),
     "metrics": Modulo("Métricas", ["tests/metrics"], [22, 23, 24], ["src/transim/metrics"]),
-    "gui": Modulo("GUI", ["tests/ui/test_gui.py"], [25, 26], ["src/transim/ui/gui"]),
+    "gui": Modulo(
+        "GUI",
+        ["tests/ui/test_gui.py", "tests/ui/test_circuito.py", "tests/ui/test_modelo.py"],
+        [25, 26],
+        ["src/transim/ui/gui"],
+    ),
     "cpu": Modulo("CPU T754", ["tests/cpu"], [29, 30], ["src/transim/cpu"]),
     "cli": Modulo("CLI", ["tests/ui/test_cli.py"], [31], ["src/transim/ui/cli.py"]),
     "ai": Modulo("Asistente", ["tests/assistant"], [32], ["src/transim/assistant"]),

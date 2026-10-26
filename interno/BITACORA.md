@@ -4,6 +4,32 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-10-25 (noche) · Interfaz nueva: esquema, silicio y corte del transistor
+
+**Hecho**
+- Pestaña Transistores rehecha (ADR-0015): esquema CMOS generado del netlist (etapas
+  serie-paralelo, transmission gates, cables entre etapas), vista de silicio (layout
+  ilustrativo de celdas estándar, filas, plano del chip completo con nivel de detalle) y
+  corte transversal con la capa de inversión. El layout se verifica contra el netlist
+  (sin cortos ni nodos abiertos) en las 10 celdas primitivas.
+- Interacción completa en el lienzo: resaltar nodos entre celdas, fijar transistor,
+  cambiar entradas con un clic, doble clic para entrar, menú contextual, ruta de
+  navegación, buscador, mapa de actividad, conmutaciones, exportar PNG.
+- Pestaña Operación con validación al escribir, ejemplos, verificación contra la
+  referencia, bits que se invierten con un clic, barra de ciclos, actividad e historial.
+- Pestaña Programa con editor de líneas numeradas, marca del PC y del error, FSR y
+  memoria. Ventana con menús, atajos, tema claro/oscuro, guía rápida y persistencia.
+- 110 pruebas de la GUI (análisis de celdas contra la simulación, layout, modelo e
+  interacción con `QTest`); la ventana cabe en 1280 × 720.
+
+**Corregido**
+- Motor `switch` en FDIV binary32: el límite de 10 eventos por nodo cortaba una
+  estabilización legítima (los glitches del divisor llegan a ~14 por nodo). Ahora 100.
+- Violación de segmento intermitente al salir de las pruebas de la GUI: cada prueba
+  creaba su `QApplication` local; ahora hay una sola por sesión.
+
+---
+
 ## 2026-10-25 (tarde) · Interfaz pulida y repositorio listo para la exposición
 
 **Hecho**

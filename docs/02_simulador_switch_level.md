@@ -113,7 +113,11 @@ estable nuevo con el anterior:
   corresponden a tiempos físicos; por eso la actividad medida es una cota inferior de
   la real.
 - **Límite de eventos:** cada estabilización admite como máximo `max_events` cambios de
-  valor de nodos (por defecto 10 000); al superarlo se lanza `OscillationError`.
+  valor de nodos (por defecto 10 000); al superarlo se lanza `OscillationError`. Las
+  unidades de hardware (`HardwareUnit`) admiten 100 cambios por nodo: en el divisor
+  binary32 los glitches de las cadenas de acarreo llegan a unos 14 cambios por nodo con
+  operandos aleatorios, y con 10 por nodo el motor `switch` se detenía antes de
+  estabilizarse.
 
 ## 4. Motor `cached`
 

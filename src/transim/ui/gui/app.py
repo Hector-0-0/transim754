@@ -5,758 +5,385 @@ Requiere el extra ``gui`` (``make install-gui``).
 La interfaz solo muestra: los resultados los calculan las unidades de transistores
 (``FPAddSub``, ``FPMul``, ``FPDiv``) y la máquina T754. La conversión de texto a bits
 usa ``reference.fpu.from_decimal``, igual que el CLI.
+
+Tres pestañas: **Operación** (la FPU vista desde afuera), **Transistores** (por dentro,
+en esquema y en silicio) y **Programa** (la FPU dentro de una CPU).
 """
 
 from __future__ import annotations
 
 import sys
-import time
-from collections.abc import Callable
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
 
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
-from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtCore import (
+    QByteArray,
+    QLibraryInfo,
+    QLocale,
+    QPointF,
+    QRectF,
+    QSettings,
+    Qt,
+    QThreadPool,
+    QTranslator,
+)
+from PySide6.QtGui import (
+    QAction,
+    QActionGroup,
+    QCloseEvent,
+    QColor,
+    QFont,
+    QGuiApplication,
+    QIcon,
+    QKeySequence,
+    QPainter,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
     QApplication,
-    QCheckBox,
-    QComboBox,
-    QFileDialog,
-    QFormLayout,
-    QGroupBox,
-    QHBoxLayout,
-    QHeaderView,
+    QDialog,
+    QDialogButtonBox,
     QLabel,
-    QLineEdit,
-    QListWidget,
     QMainWindow,
     QMessageBox,
-    QPlainTextEdit,
-    QPushButton,
-    QSizePolicy,
-    QSpinBox,
-    QTableWidget,
-    QTableWidgetItem,
     QTabWidget,
-    QTreeWidget,
-    QTreeWidgetItem,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 
-from transim.cells.library import CELLS
-from transim.core.engine_switch import SwitchEngine
-from transim.core.netlist import Instance, Netlist
-from transim.core.unit import EngineName, HardwareUnit
-from transim.cpu import isa
-from transim.cpu.assembler import AssemblyError, assemble
-from transim.fpu.format import FORMATS, FloatFormat, FPResult
-from transim.metrics.stages import (
-    GLUE,
-    STAGE_NAMES,
-    activity_by_stage,
-    critical_stages,
-    reference_period,
-    schedule,
+from transim.metrics.stages import GLUE
+from transim.ui.gui import theme
+from transim.ui.gui.canvas import pen
+from transim.ui.gui.model import (
+    Calculation,
+    calculate,
+    cycle_groups,
+    cycles_report,
+    instance_toggles,
+    parse_operand,
 )
-from transim.reference import fpu as ref
-from transim.ui.gui.transistor_view import CellScene, ZoomView, spec_for_cell, spec_for_instance
-
-BLOCK_LIMIT = 2500
-"""Transistores máximos de un bloque para dibujarlo completo en un plano."""
+from transim.ui.gui.operation_tab import OperationTab
+from transim.ui.gui.program_tab import ProgramTab
+from transim.ui.gui.transistor_tab import BLOCK_LIMIT, LEAF_CELLS, TransistorTab
 
 TITLE = "TranSim754 — procesador IEEE 754 de transistores simulados"
-OPERATIONS = {"+  suma": "add", "−  resta": "sub", "×  multiplicación": "mul", "÷  división": "div"}
+VERSION = "0.2.0"
+
+HELP = """
+<h2>Guía rápida de TranSim754</h2>
+<p>TranSim754 es una FPU IEEE 754 (suma, resta, multiplicación y división en binary32 y
+binary16) construida con transistores nMOS y pMOS simulados como interruptores.</p>
+
+<h3>Pestaña Operación: la FPU vista desde afuera</h3>
+<ul>
+<li>Escriba los operandos en decimal (<code>1.5</code>, <code>-2e-3</code>, fracción
+<code>1/3</code>, <code>inf</code>, <code>nan</code>) o sus bits en hexadecimal
+(<code>0x3FC00000</code>). Debajo de cada campo se ve cómo queda guardado.</li>
+<li>Elija la operación y el formato y pulse <b>Calcular</b> (o Enter). El resultado se
+verifica contra el modelo de referencia.</li>
+<li>En la vista de bits, <b>haga clic en un bit</b> de a o de b para invertirlo: la FPU
+recalcula al instante.</li>
+<li><b>Ejemplos</b> trae casos notables: redondeo, división por cero, NaN, overflow,
+subnormales.</li>
+<li>Abajo: ciclos de reloj estimados, actividad por etapa (doble clic para verla en
+Transistores), buses internos e historial (doble clic para repetir).</li>
+</ul>
+
+<h3>Pestaña Transistores: la FPU por dentro</h3>
+<ul>
+<li><b>Biblioteca</b>: una celda (INV, NAND2, FA…) con sus entradas. Haga clic en una
+entrada (a la izquierda, en la tabla de verdad o en el dibujo) y mire qué canales se
+abren y cuáles se cierran; los puntos amarillos son la corriente que carga o descarga
+la salida.</li>
+<li><b>Última operación</b>: la unidad que hizo el cálculo. La unidad muestra el chip
+completo; un bloque, sus celdas; una celda, sus transistores.</li>
+<li><b>Esquema</b> dibuja el circuito CMOS: pMOS arriba (a VDD), nMOS abajo (a GND).
+Canal continuo: conduce; cortado: no conduce. Fondo verde: el camino que fija la
+salida.</li>
+<li><b>Silicio</b> dibuja cómo se vería en el chip: difusión p+ (ocre) dentro del pozo
+n, difusión n+ (verde), polisilicio (rojo), metal 1 (azul) y metal 2 (violeta). El canal
+de un transistor que conduce se ilumina en verde.</li>
+<li>El <b>inspector</b> (derecha) muestra el corte transversal del transistor bajo el
+ratón: la capa de inversión aparece cuando conduce.</li>
+</ul>
+
+<h3>Ratón y teclado en el dibujo</h3>
+<table cellspacing="6">
+<tr><td>Arrastrar</td><td>mover la vista</td></tr>
+<tr><td>Rueda · Ctrl+ / Ctrl−</td><td>acercar y alejar (hacia el puntero)</td></tr>
+<tr><td>Pasar el ratón</td><td>resaltar un nodo en todas las celdas a las que llega</td></tr>
+<tr><td>Clic</td><td>fijar un transistor · cambiar una entrada de la celda</td></tr>
+<tr><td>Doble clic</td><td>entrar en una celda o bloque · acercarse a un transistor ·
+en el fondo, ajustar</td></tr>
+<tr><td>Clic derecho</td><td>menú (abrir, subir, cambiar de vista, exportar)</td></tr>
+<tr><td>Esc · Retroceso · Ctrl+0</td><td>soltar la selección · subir un nivel ·
+ajustar</td></tr>
+<tr><td>Alt+E · Alt+S</td><td>vista Esquema · vista Silicio</td></tr>
+</table>
+
+<h3>Pestaña Programa: la FPU dentro de una CPU</h3>
+<p>Escriba o abra un programa <code>.t754</code>, ensámblelo (F5) y ejecútelo paso a paso
+(F10) o hasta HALT (F8). El editor marca la instrucción que sigue; los registros que
+cambian se resaltan.</p>
+
+<h3>Atajos generales</h3>
+<p>Ctrl+1, Ctrl+2, Ctrl+3: pestañas · Ctrl+O: abrir programa · Ctrl+E: exportar el dibujo
+· F11: pantalla completa · F1: esta guía.</p>
+"""
 
 
-# ---------------------------------------------------------------- cálculo en hilo
-class _Signals(QObject):
-    done = Signal(object)
-    failed = Signal(str)
+def app_icon() -> QIcon:
+    """Icono de la aplicación: un chip con un transistor."""
+    size = 128
+    pm = QPixmap(size, size)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor("#c9a227"))
+    for k in range(5):
+        offset = 26 + k * 19
+        for x, y, w, h in (
+            (offset, 4, 9, 20),
+            (offset, 104, 9, 20),
+            (4, offset, 20, 9),
+            (104, offset, 20, 9),
+        ):
+            p.drawRoundedRect(QRectF(x, y, w, h), 2, 2)
+    p.setBrush(QColor("#2b2f3a"))
+    p.drawRoundedRect(QRectF(18, 18, 92, 92), 14, 14)
+    p.setPen(pen("#3ddc84", 7))
+    p.drawLine(QPointF(70, 40), QPointF(70, 88))
+    p.setPen(pen("#e7e9ed", 6))
+    p.drawLine(QPointF(56, 44), QPointF(56, 84))
+    p.drawLine(QPointF(34, 64), QPointF(56, 64))
+    p.setPen(pen("#ff6a5c", 5))
+    p.drawLine(QPointF(70, 46), QPointF(92, 46))
+    p.drawLine(QPointF(92, 46), QPointF(92, 30))
+    p.setPen(pen("#5aa2ff", 5))
+    p.drawLine(QPointF(70, 82), QPointF(92, 82))
+    p.drawLine(QPointF(92, 82), QPointF(92, 98))
+    p.end()
+    return QIcon(pm)
 
 
-class _Task(QRunnable):
-    """Ejecuta ``fn`` fuera del hilo de la interfaz y emite su resultado."""
+class HelpDialog(QDialog):
+    """Guía rápida de uso (F1)."""
 
-    def __init__(self, fn: Callable[[], object]) -> None:
-        super().__init__()
-        self.fn = fn
-        self.signals = _Signals()
-
-    def run(self) -> None:
-        try:
-            self.signals.done.emit(self.fn())
-        except Exception as exc:
-            self.signals.failed.emit(f"{type(exc).__name__}: {exc}")
-
-
-@dataclass
-class Calculation:
-    """Resultado de una operación en la FPU de transistores."""
-
-    fmt: FloatFormat
-    a: int
-    b: int
-    result: FPResult
-    stages: dict[str, int | None]
-    transistors: int
-    toggles: int
-    events: int
-    seconds: float
-    unit: HardwareUnit
-    stage_toggles: dict[str, int]
-
-
-_UNITS: dict[tuple[str, str, str], HardwareUnit] = {}
-
-
-def _unit(fmt: FloatFormat, op: str, engine: EngineName) -> HardwareUnit:
-    """Unidad de hardware para ``op`` (se construye una vez por formato y motor)."""
-    from transim.fpu.add_sub import FPAddSub
-    from transim.fpu.div import FPDiv
-    from transim.fpu.mul import FPMul
-
-    kind = "addsub" if op in ("add", "sub") else op
-    key = (fmt.name, kind, engine)
-    if key not in _UNITS:
-        cls = {"addsub": FPAddSub, "mul": FPMul, "div": FPDiv}[kind]
-        unit = cls(fmt, engine)
-        # Estado de partida definido (0 op 0) para que la primera medición sea comparable.
-        unit.evaluate({"a": 0, "b": 0, "sub": 0} if kind == "addsub" else {"a": 0, "b": 0})
-        _UNITS[key] = unit
-    return _UNITS[key]
-
-
-def calculate(fmt: FloatFormat, op: str, a: int, b: int, engine: EngineName) -> Calculation:
-    """Calcula ``a op b`` en la unidad de transistores y mide su actividad.
-
-    Las conmutaciones se cuentan respecto de la operación anterior de la misma unidad
-    (para la primera, respecto de 0 op 0).
-    """
-    unit = _unit(fmt, op, engine)
-    inputs: dict[str, int] = {"a": a, "b": b}
-    if op in ("add", "sub"):
-        inputs["sub"] = int(op == "sub")
-    unit.engine.reset_counters()
-    start = time.perf_counter()
-    outputs = unit.evaluate(inputs)
-    seconds = time.perf_counter() - start
-    stats = unit.engine.stats()
-    stages = {k: v for k, v in outputs.items() if k.startswith("dbg_")}
-    return Calculation(
-        fmt=fmt,
-        a=a,
-        b=b,
-        result=FPResult.from_outputs({k: v for k, v in outputs.items() if k not in stages}),
-        stages=stages,
-        transistors=unit.transistor_count(),
-        toggles=stats.node_toggles,
-        events=stats.transistor_events,
-        seconds=seconds,
-        unit=unit,
-        stage_toggles=activity_by_stage(unit.engine),
-    )
-
-
-def cycle_groups(netlist: Netlist, period: int) -> tuple[int, list[tuple[str, str, str]]]:
-    """Ciclos de ADR-0014 agrupados cuando ocupan las mismas etapas.
-
-    Returns:
-        (celdas del camino crítico, filas ``(ciclos, celdas, etapas)``).
-    """
-    stages = critical_stages(netlist)
-    cycles = schedule(stages, period)
-    rows = []
-    i = 0
-    while i < len(cycles):
-        j = i
-        while j + 1 < len(cycles) and cycles[j + 1].stages == cycles[i].stages:
-            j += 1
-        first, last = cycles[i], cycles[j]
-        which = str(first.index) if i == j else f"{first.index}–{last.index}"
-        rows.append((which, f"{first.first_cell}–{last.last_cell}", " · ".join(first.stages)))
-        i = j + 1
-    return sum(st.cells for st in stages), rows
-
-
-def cycles_report(netlist: Netlist, period: int, stage_toggles: dict[str, int]) -> str:
-    """Texto de la consola de ciclos (ADR-0014): el camino crítico repartido en ciclos de
-    ``period`` celdas y las conmutaciones de cada etapa en la última operación."""
-    total, groups = cycle_groups(netlist, period)
-    n_cycles = len(schedule(critical_stages(netlist), period))
-    lines = [
-        f"{netlist.name} · camino crítico: {total} celdas",
-        f"Periodo de reloj: {period} celdas → {n_cycles} ciclos (estimado, ADR-0014)",
-        "",
-    ]
-    for which, cells, stages in groups:
-        label = f"Ciclo {which}" if "–" not in which else f"Ciclos {which}"
-        lines.append(f"{label:<14} celdas {cells:<11} {stages}")
-    if stage_toggles:
-        lines += ["", "Conmutaciones por etapa en esta operación:"]
-        for name, n in sorted(stage_toggles.items(), key=lambda kv: -kv[1]):
-            lines.append(f"  {STAGE_NAMES.get(name, name):<28} {n:>7}")
-    return "\n".join(lines)
-
-
-def _table(headers: list[str]) -> QTableWidget:
-    """Tabla de solo lectura con columnas ajustadas y texto que se parte en líneas."""
-    table = QTableWidget(0, len(headers))
-    table.setHorizontalHeaderLabels(headers)
-    table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-    table.verticalHeader().setVisible(False)
-    table.setWordWrap(True)
-    header = table.horizontalHeader()
-    for col in range(len(headers) - 1):
-        header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
-    header.setSectionResizeMode(len(headers) - 1, QHeaderView.ResizeMode.Stretch)
-    return table
-
-
-def _fill(table: QTableWidget, rows: list[list[str]]) -> None:
-    """Reemplaza las filas de ``table``."""
-    table.setRowCount(len(rows))
-    for r, row in enumerate(rows):
-        for c, text in enumerate(row):
-            table.setItem(r, c, QTableWidgetItem(text))
-    table.resizeRowsToContents()
-
-
-def parse_operand(text: str, fmt: FloatFormat) -> int:
-    """Bits del operando escrito en decimal o en hexadecimal ``0x…``.
-
-    Raises:
-        ValueError: si el texto no es un número válido o no cabe en el formato.
-    """
-    text = text.strip()
-    if text.lower().startswith("0x"):
-        bits = int(text, 16)
-        if bits >> fmt.width:
-            raise ValueError(f"{text} no cabe en {fmt.width} bits")
-        return bits
-    return ref.from_decimal(fmt, text).bits
-
-
-def _mono() -> QFont:
-    return QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
-
-
-# ------------------------------------------------------------- pestaña operación
-class OperationTab(QWidget):
-    """Operandos, vista de bits, flags, etapas, ciclos y métricas de una operación."""
-
-    calculated = Signal(object)
-    """Se emite con cada :class:`Calculation` terminado."""
-
-    def __init__(self, pool: QThreadPool) -> None:
-        super().__init__()
-        self.pool = pool
-        self.last: Calculation | None = None
-        self.a_edit, self.b_edit = QLineEdit("1.5"), QLineEdit("2.25")
-        self.fmt_box = QComboBox()
-        self.fmt_box.addItems(sorted(FORMATS, reverse=True))
-        self.op_box = QComboBox()
-        self.op_box.addItems(list(OPERATIONS))
-        self.engine_box = QComboBox()
-        self.engine_box.addItems(["cached", "switch"])
-        self.run_button = QPushButton("Calcular en transistores")
-        self.run_button.clicked.connect(self.run)
-
-        form = QFormLayout()
-        form.addRow("Operando a (decimal o 0x…)", self.a_edit)
-        form.addRow("Operando b (decimal o 0x…)", self.b_edit)
-        form.addRow("Operación", self.op_box)
-        form.addRow("Formato", self.fmt_box)
-        form.addRow("Motor", self.engine_box)
-        form.addRow(self.run_button)
-        inputs = QGroupBox("Entrada")
-        inputs.setLayout(form)
-
-        self.bits = QTableWidget(3, 6)
-        self.bits.setHorizontalHeaderLabels(["valor", "hex", "s", "exponente", "fracción", "clase"])
-        self.bits.setVerticalHeaderLabels(["a", "b", "resultado"])
-        self.bits.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.bits.setFont(_mono())
-        self.bits.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.bits.setSizeAdjustPolicy(QTableWidget.SizeAdjustPolicy.AdjustToContents)
-        self.bits.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        bits_box = QGroupBox("Bits (signo | exponente | fracción)")
-        bits_layout = QVBoxLayout()
-        bits_layout.addWidget(self.bits)
-        bits_box.setLayout(bits_layout)
-
-        self.flags = QLabel("—")
-        self.metrics = {
-            k: QLabel("—") for k in ("transistores", "conmutaciones", "eventos", "tiempo")
-        }
-        summary = QFormLayout()
-        summary.addRow("Flags", self.flags)
-        summary.addRow("Transistores", self.metrics["transistores"])
-        summary.addRow("Conmutaciones de nodo*", self.metrics["conmutaciones"])
-        summary.addRow("Eventos de transistor*", self.metrics["eventos"])
-        summary.addRow("Tiempo de simulación", self.metrics["tiempo"])
-        summary.addRow(QLabel("<small>* respecto de la operación anterior</small>"))
-        summary_box = QGroupBox("Resultado")
-        summary_box.setLayout(summary)
-
-        # Detalle de la operación en pestañas: ciclos, actividad y buses de etapa.
-        self.period = QSpinBox()
-        self.period.setRange(1, 1000)
-        self.period.setValue(reference_period())
-        self.period.setSuffix(" celdas")
-        self.period.valueChanged.connect(self._show_cycles)
-        self.cycles_summary = QLabel("Calcule una operación para ver sus ciclos.")
-        self.cycles = _table(["Ciclo", "Celdas del camino crítico", "Etapas que ocupa"])
-        period_row = QHBoxLayout()
-        period_row.addWidget(self.cycles_summary, 1)
-        period_row.addWidget(QLabel("Periodo de reloj:"))
-        period_row.addWidget(self.period)
-        cycles_page = QWidget()
-        cycles_layout = QVBoxLayout(cycles_page)
-        cycles_layout.addLayout(period_row)
-        cycles_layout.addWidget(self.cycles)
-        cycles_layout.addWidget(
-            QLabel(
-                "<small>Estimación de ADR-0014: cada celda cuesta una unidad de retardo; el "
-                "periodo por defecto es el camino crítico de la ALU entera.</small>"
-            )
-        )
-        self.activity = _table(["Etapa", "Conmutaciones de nodo", "% del total"])
-        self.stages = _table(["Bus", "Valor (hex)"])
-        self.details = QTabWidget()
-        self.details.addTab(cycles_page, "Ciclos de reloj")
-        self.details.addTab(self.activity, "Actividad por etapa")
-        self.details.addTab(self.stages, "Buses de etapa (dbg_)")
-
-        top = QHBoxLayout()
-        top.addWidget(inputs, 1)
-        top.addWidget(summary_box, 1)
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Guía rápida · TranSim754")
+        browser = QTextBrowser()
+        browser.setHtml(HELP)
+        browser.setOpenExternalLinks(True)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText("Cerrar")
+        buttons.rejected.connect(self.reject)
         layout = QVBoxLayout(self)
-        layout.addLayout(top)
-        layout.addWidget(bits_box)
-        layout.addWidget(self.details, 1)
-
-    def run(self) -> None:
-        """Lee la entrada y lanza el cálculo en un hilo de trabajo."""
-        fmt = FORMATS[self.fmt_box.currentText()]
-        op = OPERATIONS[self.op_box.currentText()]
-        engine: EngineName = "switch" if self.engine_box.currentText() == "switch" else "cached"
-        try:
-            a = parse_operand(self.a_edit.text(), fmt)
-            b = parse_operand(self.b_edit.text(), fmt)
-        except (ValueError, ZeroDivisionError) as exc:
-            QMessageBox.warning(self, "Operando inválido", str(exc))
-            return
-        self.run_button.setEnabled(False)
-        self.metrics["tiempo"].setText("calculando…")
-        task = _Task(lambda: calculate(fmt, op, a, b, engine))
-        task.signals.done.connect(self.show_result)
-        task.signals.failed.connect(self._failed)
-        self.pool.start(task)
-
-    def show_result(self, calc: Calculation) -> None:
-        """Muestra un :class:`Calculation` en la ventana."""
-        self.run_button.setEnabled(True)
-        fmt = calc.fmt
-        for row, bits in enumerate((calc.a, calc.b, calc.result.bits)):
-            s, e, f = fmt.fields(bits)
-            values = [
-                f"{ref.to_float(fmt, bits):.9g}",
-                f"0x{bits:0{fmt.width // 4}X}",
-                str(s),
-                f"{e:0{fmt.exp_bits}b}",
-                f"{f:0{fmt.frac_bits}b}",
-                fmt.classify(bits).value,
-            ]
-            for col, text in enumerate(values):
-                self.bits.setItem(row, col, QTableWidgetItem(text))
-        self.flags.setText(str(calc.result.flags))
-        self.metrics["transistores"].setText(str(calc.transistors))
-        self.metrics["conmutaciones"].setText(str(calc.toggles))
-        self.metrics["eventos"].setText(str(calc.events))
-        self.metrics["tiempo"].setText(f"{calc.seconds * 1000:.1f} ms")
-        _fill(self.stages, [[k, "X" if v is None else f"0x{v:X}"] for k, v in calc.stages.items()])
-        total = sum(calc.stage_toggles.values()) or 1
-        _fill(
-            self.activity,
-            [
-                [STAGE_NAMES.get(name, name), str(n), f"{100 * n / total:.1f} %"]
-                for name, n in sorted(calc.stage_toggles.items(), key=lambda kv: -kv[1])
-            ],
-        )
-        self.last = calc
-        self._show_cycles()
-        self.calculated.emit(calc)
-
-    def _show_cycles(self) -> None:
-        if self.last is None:
-            return
-        netlist = self.last.unit.netlist
-        total, groups = cycle_groups(netlist, self.period.value())
-        count = len(schedule(critical_stages(netlist), self.period.value()))
-        self.cycles_summary.setText(
-            f"<b>{netlist.name}</b>: camino crítico de {total} celdas → <b>{count} ciclos</b> "
-            "estimados"
-        )
-        _fill(self.cycles, [list(g) for g in groups])
-
-    def _failed(self, message: str) -> None:
-        self.run_button.setEnabled(True)
-        self.metrics["tiempo"].setText("error")
-        QMessageBox.critical(self, "Error de simulación", message)
+        layout.addWidget(browser)
+        layout.addWidget(buttons)
+        self.resize(720, 720)
 
 
-# -------------------------------------------------------------- pestaña programa
-class ProgramTab(QWidget):
-    """Carga, ensambla y ejecuta programas ``.t754`` en la máquina de transistores."""
+class MainWindow(QMainWindow):
+    """Ventana principal con las tres pestañas, menús y barra de estado."""
 
-    def __init__(self, pool: QThreadPool) -> None:
+    def __init__(self, *, persist: bool = False) -> None:
         super().__init__()
-        self.pool = pool
-        self.machine: Any = None
-        self.source = QPlainTextEdit()
-        self.source.setFont(_mono())
-        self.source.setPlainText("LI F1, 1.5\nLI F2, 2.25\nFADD F3, F1, F2\nOUT F3\nHALT\n")
-        open_button = QPushButton("Abrir .t754…")
-        open_button.clicked.connect(self.open_file)
-        self.load_button = QPushButton("Ensamblar y reiniciar")
-        self.load_button.clicked.connect(self.load)
-        self.step_button = QPushButton("Paso")
-        self.step_button.clicked.connect(self.step)
-        self.run_button = QPushButton("Ejecutar hasta HALT")
-        self.run_button.clicked.connect(self.run)
-        buttons = QHBoxLayout()
-        for button in (open_button, self.load_button, self.step_button, self.run_button):
-            buttons.addWidget(button)
-
-        self.regs = QTableWidget(isa.N_REGS, 2)
-        self.regs.setHorizontalHeaderLabels(["hex", "valor"])
-        self.regs.setVerticalHeaderLabels([f"F{i}" for i in range(isa.N_REGS)])
-        self.regs.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.regs.setFont(_mono())
-        self.regs.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        for r in range(isa.N_REGS):
-            for c in range(2):
-                self.regs.setItem(r, c, QTableWidgetItem("—"))
-        self.status = QLabel("Sin programa cargado: pulse «Ensamblar y reiniciar».")
-        self.outputs = QListWidget()
-        right = QVBoxLayout()
-        right.addWidget(QLabel("<b>Registros</b>"))
-        right.addWidget(self.regs)
-        right.addWidget(self.status)
-        right.addWidget(QLabel("<b>Salidas (OUT)</b>"))
-        right.addWidget(self.outputs)
-
-        intro = QLabel(
-            "La FPU dentro de una CPU: el programa se ensambla y se ejecuta en la máquina "
-            "T754, con el decodificador, el banco de registros y la FPU de transistores."
+        self.persist = persist
+        self.setWindowTitle(TITLE)
+        self.setWindowIcon(app_icon())
+        pool = QThreadPool.globalInstance()
+        self.operation = OperationTab(pool)
+        self.transistors = TransistorTab()
+        self.program = ProgramTab(pool)
+        self.tabs = QTabWidget()
+        self.tabs.setDocumentMode(True)
+        self.tabs.tabBar().setDrawBase(False)
+        self.tabs.addTab(self.operation, "Operación")
+        self.tabs.addTab(self.transistors, "Transistores")
+        self.tabs.addTab(self.program, "Programa")
+        self.tabs.setTabToolTip(
+            0, "La FPU vista desde afuera: operandos, resultado, bits, ciclos (Ctrl+1)"
         )
-        intro.setWordWrap(True)
-        left = QVBoxLayout()
-        left.addWidget(intro)
-        left.addWidget(self.source)
-        left.addLayout(buttons)
-        layout = QHBoxLayout(self)
-        layout.addLayout(left, 3)
-        layout.addLayout(right, 2)
-        self._set_running(False)
-
-    def _set_running(self, ready: bool) -> None:
-        self.step_button.setEnabled(ready)
-        self.run_button.setEnabled(ready)
-
-    def open_file(self) -> None:
-        """Abre un archivo ``.t754`` en el editor."""
-        path, _ = QFileDialog.getOpenFileName(self, "Abrir programa", "", "Programas (*.t754)")
-        if path:
-            self.source.setPlainText(Path(path).read_text(encoding="utf-8"))
-
-    def load(self) -> None:
-        """Ensambla el editor y crea una máquina nueva."""
-        try:
-            words = assemble(self.source.toPlainText(), filename="editor")
-        except AssemblyError as exc:
-            QMessageBox.warning(self, "Error de ensamblado", str(exc))
-            return
-        from transim.cpu.machine import Machine
-
-        self.status.setText("Construyendo la máquina…")
-        self.load_button.setEnabled(False)
-        task = _Task(lambda: Machine(words))
-        task.signals.done.connect(self._loaded)
-        task.signals.failed.connect(self._failed)
-        self.pool.start(task)
-
-    def _loaded(self, machine: object) -> None:
-        self.machine = machine
-        self.load_button.setEnabled(True)
-        self.outputs.clear()
-        self.refresh()
-        self._set_running(True)
-
-    def step(self) -> None:
-        """Ejecuta una instrucción."""
-        self._background(lambda: self.machine.step())
-
-    def run(self) -> None:
-        """Ejecuta hasta HALT."""
-        self._background(lambda: self.machine.run())
-
-    def _background(self, fn: Callable[[], object]) -> None:
-        if self.machine is None:
-            return
-        self._set_running(False)
-        task = _Task(fn)
-        task.signals.done.connect(self._after_run)
-        task.signals.failed.connect(self._failed)
-        self.pool.start(task)
-
-    def _after_run(self, _result: object) -> None:
-        self.refresh()
-
-    def refresh(self) -> None:
-        """Muestra el estado arquitectónico de la máquina."""
-        state = self.machine.state
-        fmt = self.machine.fmt
-        for r, value in enumerate(state.regs):
-            self.regs.setItem(r, 0, QTableWidgetItem(f"0x{value:08X}"))
-            self.regs.setItem(r, 1, QTableWidgetItem(f"{ref.to_float(fmt, value):.9g}"))
-        self.outputs.clear()
-        for value in state.outputs:
-            self.outputs.addItem(f"0x{value:08X}  ({ref.to_float(fmt, value):.9g})")
-        phase = "HALT" if state.halted else f"PC = {state.pc}"
-        self.status.setText(f"{phase} · FSR = 0x{state.fsr:08X} · {state.steps} instrucciones")
-        self._set_running(not state.halted)
-
-    def _failed(self, message: str) -> None:
-        self.load_button.setEnabled(True)
-        self.status.setText("error")
-        QMessageBox.critical(self, "Error de ejecución", message)
-
-
-# ----------------------------------------------------------- pestaña transistores
-LEAF_CELLS = [name for name, build in CELLS.items() if not build().instances]
-"""Celdas primitivas de la biblioteca (sin sub-instancias): las que se dibujan."""
-
-
-def instance_toggles(engine: SwitchEngine, inst: Instance) -> int:
-    """Conmutaciones de los nodos que manejan los canales de ``inst`` (contadores actuales)."""
-    nodes = {n.id for t in inst.transistors for n in (t.source, t.drain) if not n.is_source}
-    return sum(engine.node_toggles[i] for i in nodes)
-
-
-class TransistorTab(QWidget):
-    """Microscopio: de los bloques de una unidad hasta cada transistor y su estado."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.scene = CellScene()
-        self.view = ZoomView(self.scene)
-        self.info = QLabel("Elija una celda de la biblioteca o calcule una operación.")
-        self.info.setWordWrap(True)
-        self.unit: HardwareUnit | None = None
-        self._children: dict[str | None, list[Instance]] = {}
-
-        # Fuente 1: una celda de la biblioteca con entradas elegidas por el usuario.
-        self.cell_box = QComboBox()
-        self.cell_box.addItems(LEAF_CELLS)
-        self.cell_box.currentTextChanged.connect(self.set_cell)
-        self.inputs_row = QHBoxLayout()
-        self.outputs = QLabel()
-        self.outputs.setFont(_mono())
-        library = QWidget()
-        lib_layout = QVBoxLayout(library)
-        lib_layout.addWidget(QLabel("Celda"))
-        lib_layout.addWidget(self.cell_box)
-        lib_layout.addWidget(QLabel("Entradas"))
-        lib_layout.addLayout(self.inputs_row)
-        lib_layout.addWidget(QLabel("Salidas"))
-        lib_layout.addWidget(self.outputs)
-        lib_layout.addStretch(1)
-        self.checks: dict[str, QCheckBox] = {}
-
-        # Fuente 2: la jerarquía de la unidad de la última operación.
-        self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["instancia", "definición", "T", "conm."])
-        self.tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.tree.setMinimumWidth(330)
-        self.tree.itemExpanded.connect(self._expand)
-        self.tree.currentItemChanged.connect(self._select)
-
-        self.sources = QTabWidget()
-        self.sources.addTab(library, "Biblioteca")
-        self.sources.addTab(self.tree, "Última operación")
-        fit = QPushButton("Ajustar")
-        fit.clicked.connect(self.view.fit)
-        zoom_in, zoom_out = QPushButton("+"), QPushButton("−")
-        zoom_in.clicked.connect(self.view.zoom_in)
-        zoom_out.clicked.connect(self.view.zoom_out)
-        legend = QLabel(
-            "<span style='color:#1e8e3e'>■</span> conduce · "
-            "<span style='color:#bdc1c6'>■</span> no conduce · "
-            "<span style='color:#c62828'>1</span> / <span style='color:#1a5fd0'>0</span> / "
-            "<span style='color:#c77700'>X</span> valor del nodo · arrastre para moverse"
+        self.tabs.setTabToolTip(
+            1, "La FPU por dentro: esquema y silicio hasta cada transistor (Ctrl+2)"
         )
-        right = QVBoxLayout()
-        right.addWidget(self.info)
-        right.addWidget(self.view, 1)
-        bar = QHBoxLayout()
-        bar.addWidget(legend, 1)
-        for button in (zoom_out, zoom_in, fit):
-            bar.addWidget(button)
-        right.addLayout(bar)
-        layout = QHBoxLayout(self)
-        layout.addWidget(self.sources, 2)
-        layout.addLayout(right, 5)
-        self.set_cell(LEAF_CELLS[0])
-
-    # ------------------------------------------------------------- biblioteca
-    def set_cell(self, name: str) -> None:
-        """Muestra la celda ``name`` con todas sus entradas en 0."""
-        self.cell = CELLS[name]()
-        self.engine = SwitchEngine(self.cell)
-        while self.inputs_row.count():
-            taken = self.inputs_row.takeAt(0)
-            widget = taken.widget() if taken is not None else None
-            if widget is not None:
-                widget.setParent(None)
-                widget.deleteLater()
-        self.checks = {}
-        for port in self.cell.inputs:
-            box = QCheckBox(port)
-            box.toggled.connect(self.apply_inputs)
-            self.inputs_row.addWidget(box)
-            self.checks[port] = box
-        self.apply_inputs()
-        self.view.fit()
-
-    def apply_inputs(self) -> None:
-        """Aplica las entradas marcadas a la celda y redibuja sus transistores."""
-        self.engine.set_inputs({p: int(box.isChecked()) for p, box in self.checks.items()})
-        outs = "  ".join(f"{p} = {self.engine.read(p).name}" for p in self.cell.outputs)
-        self.outputs.setText(outs.replace("ZERO", "0").replace("ONE", "1"))
-        n = len(self.cell.transistors)
-        self.scene.draw_cells([spec_for_cell(self.cell)], self.engine.value, self.engine.conduction)
-        self.info.setText(
-            f"Celda {self.cell.name}: {self.scene.flowing} de {n} transistores conducen con "
-            "estas entradas. Cambie una entrada para ver qué transistores conmutan."
+        self.tabs.setTabToolTip(
+            2, "La FPU dentro de una CPU: programas .t754 en la máquina T754 (Ctrl+3)"
         )
-
-    # -------------------------------------------------------- última operación
-    def show_calculation(self, calc: Calculation) -> None:
-        """Carga la jerarquía de la unidad que hizo el último cálculo."""
-        self.unit = calc.unit
-        netlist = calc.unit.netlist
-        self._children = {}
-        for inst in netlist.instances:
-            self._children.setdefault(inst.parent, []).append(inst)
-        self.tree.clear()
-        root = QTreeWidgetItem([netlist.name, "unidad", str(len(netlist.transistors)), ""])
-        self.tree.addTopLevelItem(root)
-        self._fill(root, None)
-        root.setExpanded(True)
-
-    def _fill(self, item: QTreeWidgetItem, parent: str | None) -> None:
-        """Agrega los hijos de ``parent``. En el primer nivel, las celdas sueltas se agrupan
-        en un nodo de enlace para que destaquen los bloques del datapath."""
-        children = self._children.get(parent, [])
-        if parent is None:
-            glue = [i for i in children if i.is_leaf]
-            for inst in children:
-                if not inst.is_leaf:
-                    item.addChild(self._item(inst))
-            if glue:
-                group = QTreeWidgetItem(
-                    [
-                        f"{STAGE_NAMES[GLUE]} ({len(glue)} celdas)",
-                        "celdas sueltas",
-                        str(sum(len(i.transistors) for i in glue)),
-                        "",
-                    ]
-                )
-                group.addChildren([self._item(i) for i in glue])
-                item.addChild(group)
-            return
-        item.addChildren([self._item(inst) for inst in children])
-
-    def _item(self, inst: Instance) -> QTreeWidgetItem:
-        assert self.unit is not None
-        name = inst.path.rsplit(".", 1)[-1]
-        if inst.parent is None and name in STAGE_NAMES:
-            name = f"{name} · {STAGE_NAMES[name]}"
-        child = QTreeWidgetItem(
-            [
-                name,
-                inst.definition.name,
-                str(len(inst.transistors)),
-                str(instance_toggles(self.unit.engine, inst)),
-            ]
+        brand = QLabel(
+            "<span style='font-size:15px; font-weight:800'>TranSim754</span>"
+            "&nbsp;&nbsp;<span style='color:gray'>FPU IEEE 754 de transistores</span>"
         )
-        child.setData(0, Qt.ItemDataRole.UserRole, inst)
-        if not inst.is_leaf:
-            child.addChild(QTreeWidgetItem(["…"]))  # se llena al expandir
-        return child
+        brand.setContentsMargins(12, 0, 16, 0)
+        self.tabs.setCornerWidget(brand, Qt.Corner.TopLeftCorner)
+        self.setCentralWidget(self.tabs)
 
-    def _expand(self, item: QTreeWidgetItem) -> None:
-        inst = item.data(0, Qt.ItemDataRole.UserRole)
-        placeholder = item.child(0) if item.childCount() == 1 else None
-        if isinstance(inst, Instance) and placeholder is not None and placeholder.text(0) == "…":
-            item.takeChild(0)
-            self._fill(item, inst.path)
+        self.operation.calculated.connect(self.transistors.show_calculation)
+        self.operation.open_stage.connect(self._open_stage)
+        self.transistors.go_operation.connect(self._go_operation)
+        for tab in (self.operation, self.transistors, self.program):
+            tab.status.connect(self._status)
+        self.statusBar().addPermanentWidget(QLabel("F1: guía rápida"))
+        self._menus()
+        hints = QGuiApplication.styleHints()
+        if hasattr(hints, "colorSchemeChanged"):
+            hints.colorSchemeChanged.connect(self._system_theme_changed)
+        screen = QGuiApplication.primaryScreen()
+        w, h = 1440, 900
+        if screen is not None:
+            avail = screen.availableGeometry()
+            w, h = min(w, int(avail.width() * 0.94)), min(h, int(avail.height() * 0.92))
+        self.resize(w, h)
+        if persist:
+            self._restore()
+        self.operation.a.edit.setFocus()
 
-    def _select(self, item: QTreeWidgetItem | None, _previous: object = None) -> None:
-        inst = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
-        if not isinstance(inst, Instance) or self.unit is None:
-            return
-        engine = self.unit.engine
-        toggles = instance_toggles(engine, inst)
-        n = len(inst.transistors)
-        if inst.is_leaf:
-            cells = [inst]
-        elif n <= BLOCK_LIMIT:
-            cells = [
-                c for c in self.unit.netlist.leaf_instances() if c.path.startswith(f"{inst.path}.")
-            ]
-        else:
-            self.info.setText(
-                f"{inst.path}: bloque {inst.definition.name} con {n} transistores y {toggles} "
-                f"conmutaciones en la última operación. Es demasiado grande para un solo plano "
-                f"(más de {BLOCK_LIMIT} transistores): expándalo y elija una parte."
+    # ------------------------------------------------------------------ menús
+    def _menus(self) -> None:
+        bar = self.menuBar()
+        archivo = bar.addMenu("&Archivo")
+        self._action(archivo, "Abrir programa .t754…", "Ctrl+O", self._open_program)
+        self._action(archivo, "Exportar el dibujo de transistores…", "Ctrl+E", self._export)
+        archivo.addSeparator()
+        self._action(archivo, "Salir", "Ctrl+Q", self.close)
+
+        ver = bar.addMenu("&Ver")
+        for k, name in enumerate(("Operación", "Transistores", "Programa")):
+            self._action(
+                ver, name, f"Ctrl+{k + 1}", lambda _=False, k=k: self.tabs.setCurrentIndex(k)
             )
-            return
-        base = "" if inst.is_leaf else f"{inst.path}."
-        specs = [spec_for_instance(c, base) for c in cells]
-        self.scene.draw_cells(specs, engine.value, engine.conduction)
-        self.view.fit()
-        what = "celda" if inst.is_leaf else f"bloque de {len(cells)} celdas"
-        self.info.setText(
-            f"{inst.path} ({inst.definition.name}, {what}) en la última operación: "
-            f"{self.scene.flowing} de {n} transistores conducen; {toggles} conmutaciones de "
-            "sus nodos. Arrastre para moverse y use la rueda o los botones para el zoom."
+        ver.addSeparator()
+        tema = ver.addMenu("Tema")
+        group = QActionGroup(self)
+        self.theme_actions: dict[str, QAction] = {}
+        for key, text in (("sistema", "Como el sistema"), ("claro", "Claro"), ("oscuro", "Oscuro")):
+            a = QAction(text, self)
+            a.setCheckable(True)
+            a.triggered.connect(lambda _=False, key=key: self.set_theme(key))
+            group.addAction(a)
+            tema.addAction(a)
+            self.theme_actions[key] = a
+        self.theme_choice = "sistema"
+        self.theme_actions["sistema"].setChecked(True)
+        ver.addSeparator()
+        self._action(ver, "Pantalla completa", "F11", self._fullscreen)
+
+        ayuda = bar.addMenu("A&yuda")
+        self._action(ayuda, "Guía rápida", "F1", self.show_help)
+        self._action(ayuda, "Acerca de TranSim754", None, self._about)
+
+    def _action(self, menu: object, text: str, keys: str | None, fn: object) -> QAction:
+        a = QAction(text, self)
+        if keys:
+            a.setShortcut(QKeySequence(keys))
+        a.triggered.connect(fn)
+        menu.addAction(a)  # type: ignore[attr-defined]
+        return a
+
+    def _status(self, text: str) -> None:
+        if text:
+            self.statusBar().showMessage(text, 8000)
+        else:
+            self.statusBar().clearMessage()
+
+    def _open_stage(self, key: str) -> None:
+        self.tabs.setCurrentWidget(self.transistors)
+        self.transistors.reveal("glue" if key == GLUE else key)
+
+    def _go_operation(self) -> None:
+        self.tabs.setCurrentWidget(self.operation)
+        self.operation.a.edit.setFocus()
+
+    def _open_program(self) -> None:
+        self.tabs.setCurrentWidget(self.program)
+        self.program.open_file()
+
+    def _export(self) -> None:
+        self.tabs.setCurrentWidget(self.transistors)
+        self.transistors.export_dialog()
+
+    def _fullscreen(self) -> None:
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
+
+    def show_help(self) -> None:
+        HelpDialog(self).exec()
+
+    def _about(self) -> None:
+        QMessageBox.about(
+            self,
+            "Acerca de TranSim754",
+            f"<h3>TranSim754 {VERSION}</h3>"
+            "<p>Procesador con transistores simulados: una FPU IEEE 754 (FADD, FSUB, FMUL, "
+            "FDIV en binary32 y binary16) construida desde transistores nMOS y pMOS en un "
+            "simulador de nivel de interruptor, y la máquina T754 que la usa.</p>"
+            "<p>Héctor David Flores Sánchez<br>SI421U · FIIS · Universidad Nacional de "
+            "Ingeniería · 2026-II</p><p>Licencia MIT.</p>",
         )
 
+    # ------------------------------------------------------------------- tema
+    def set_theme(self, key: str) -> None:
+        """Aplica el tema ``sistema``, ``claro`` u ``oscuro``."""
+        if key not in self.theme_actions:
+            key = "sistema"
+        self.theme_choice = key
+        self.theme_actions[key].setChecked(True)
+        app = QApplication.instance()
+        if not isinstance(app, QApplication):
+            return
+        dark = theme.system_prefers_dark() if key == "sistema" else key == "oscuro"
+        theme.apply(app, theme.DARK if dark else theme.LIGHT)
+        for tab in (self.operation, self.transistors, self.program):
+            tab.apply_theme()
 
-# ------------------------------------------------------------------------ ventana
-def create_window() -> QMainWindow:
-    """Construye la ventana principal (``QMainWindow``) sin mostrarla.
+    def _system_theme_changed(self, *_args: object) -> None:
+        if self.theme_choice == "sistema":
+            self.set_theme("sistema")
+
+    # ------------------------------------------------------------- persistencia
+    def _settings(self) -> QSettings:
+        return QSettings("TranSim754", "TranSim754")
+
+    def _restore(self) -> None:
+        s = self._settings()
+        geometry = s.value("geometry")
+        if isinstance(geometry, QByteArray):
+            self.restoreGeometry(geometry)
+        self.set_theme(str(s.value("theme", "sistema")))
+        tab = str(s.value("tab", 0))
+        if tab.isdigit():
+            self.tabs.setCurrentIndex(int(tab))
+
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 - API de Qt
+        if self.persist:
+            s = self._settings()
+            s.setValue("geometry", self.saveGeometry())
+            s.setValue("theme", self.theme_choice)
+            s.setValue("tab", self.tabs.currentIndex())
+        super().closeEvent(event)
+
+
+def create_window(*, persist: bool = False) -> MainWindow:
+    """Construye la ventana principal sin mostrarla.
 
     El título contiene "TranSim754". Separar la construcción de ``main`` permite
-    probarla sin bucle de eventos (``QT_QPA_PLATFORM=offscreen``).
+    probarla sin bucle de eventos (``QT_QPA_PLATFORM=offscreen``). Con ``persist`` la
+    ventana recuerda su tamaño, la pestaña y el tema entre sesiones.
     """
-    window = QMainWindow()
-    window.setWindowTitle(TITLE)
-    pool = QThreadPool.globalInstance()
-    tabs = QTabWidget()
-    operation = OperationTab(pool)
-    transistors = TransistorTab()
-    operation.calculated.connect(transistors.show_calculation)
-    tabs.addTab(operation, "Operación")
-    tabs.addTab(transistors, "Transistores")
-    tabs.addTab(ProgramTab(pool), "Programa")
-    window.setCentralWidget(tabs)
-    window.resize(1100, 720)
-    return window
+    return MainWindow(persist=persist)
+
+
+def install_spanish(app: QApplication) -> QTranslator | None:
+    """Traduce al español los textos propios de Qt (botones y diálogos estándar)."""
+    translator = QTranslator(app)
+    path = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+    if translator.load(QLocale(QLocale.Language.Spanish), "qtbase", "_", path):
+        app.installTranslator(translator)
+        return translator
+    return None
 
 
 def main() -> int:
@@ -766,9 +393,38 @@ def main() -> int:
     bits signo/exponente/fracción de operandos y resultado; flags; etapas de la
     operación (buses ``dbg_``); ciclos de reloj estimados; conteo de transistores y
     conmutaciones; pestaña de transistores que baja de los bloques de la unidad hasta
-    cada nMOS y pMOS con su estado; pestaña para ejecutar programas ``.t754`` paso a paso.
+    cada nMOS y pMOS con su estado, en esquema y en silicio; pestaña para ejecutar
+    programas ``.t754`` paso a paso.
     """
     app = QApplication.instance() or QApplication(sys.argv)
-    window = create_window()
+    if isinstance(app, QApplication):
+        app.setApplicationName("TranSim754")
+        install_spanish(app)
+        app.setWindowIcon(app_icon())
+        font = QFont(app.font())
+        if font.pointSizeF() < 9.5:
+            font.setPointSizeF(9.5)
+            app.setFont(font)
+        theme.apply(app, theme.DARK if theme.system_prefers_dark() else theme.LIGHT)
+    window = create_window(persist=True)
     window.show()
     return int(app.exec())
+
+
+__all__ = [
+    "BLOCK_LIMIT",
+    "LEAF_CELLS",
+    "TITLE",
+    "Calculation",
+    "MainWindow",
+    "OperationTab",
+    "ProgramTab",
+    "TransistorTab",
+    "calculate",
+    "create_window",
+    "cycle_groups",
+    "cycles_report",
+    "instance_toggles",
+    "main",
+    "parse_operand",
+]
