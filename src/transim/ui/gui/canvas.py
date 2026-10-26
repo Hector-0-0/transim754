@@ -73,8 +73,6 @@ TITLE_FONT = _font(10.0, bold=True)
 BADGE_FONT = _font(7.0, bold=True)
 PIN_FONT = _font(6.5, bold=True)
 
-_METRICS = QFontMetricsF(LABEL_FONT)
-
 # Colores de las capas del layout (convención de los editores de layout: difusión p
 # ocre, difusión n verde, polisilicio rojo, metal 1 azul, metal 2 violeta).
 LAYER_COLOR = {
@@ -102,7 +100,7 @@ LAYER_NAMES = {
 
 def measure(text: str) -> float:
     """Ancho de ``text`` con la fuente de las etiquetas del esquema (con la insignia)."""
-    return _METRICS.horizontalAdvance(text) + 16
+    return QFontMetricsF(LABEL_FONT).horizontalAdvance(text) + 16
 
 
 def pen(
@@ -208,9 +206,13 @@ class CellItem(QGraphicsItem):
         self.board.set_hover(None)
 
     def _paint_heat(self, painter: QPainter, rect: QRectF) -> None:
+        """Mapa de actividad: transparente si la celda no conmutó, de ámbar a rojo cuanto
+        más conmutó en la última operación."""
         if self.board.show_heat and self.heat > 0:
+            h = self.heat
+            color = QColor.fromHsvF(max(0.0, 0.13 - 0.13 * h), 0.95, 1.0)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(alpha("#ff7a1a", int(40 + 170 * self.heat))))
+            painter.setBrush(QBrush(alpha(color, int(40 + 190 * h * h))))
             painter.drawRect(rect)
 
 
@@ -266,7 +268,7 @@ class SchematicItem(CellItem):
         toggled = self.board.toggled_nodes if self.board.show_toggles else set()
         for s in self.geo.segs:
             if local_hover is not None and s.node == local_hover:
-                painter.setPen(pen(t.halo, 9))
+                painter.setPen(pen(alpha(t.halo, 170), 9))
                 painter.drawLine(QPointF(s.x1, s.y1), QPointF(s.x2, s.y2))
             elif toggled and self.node_id(s.node) in toggled:
                 painter.setPen(pen(alpha("#ff9f1a", 110), 7))
@@ -281,8 +283,29 @@ class SchematicItem(CellItem):
             self._paint_device(painter, t, d, state[d.index], value)
         if lod > 0.42:
             self._paint_texts(painter, t, value, local_hover)
+        else:
+            self._paint_title(painter, t, rect, lod)
         self._paint_flow(painter, t)
         self._paint_heat(painter, rect)
+
+    def _paint_title(self, painter: QPainter, t: th.Theme, rect: QRectF, lod: float) -> None:
+        """Con poco zoom, el título se pinta a tamaño de pantalla constante."""
+        if rect.width() * lod < 44:
+            return
+        painter.save()
+        painter.translate(rect.left() + 6, rect.top() + 4)
+        painter.scale(1 / lod, 1 / lod)
+        font = _font(8.5, bold=True)
+        painter.setFont(font)
+        fm = QFontMetricsF(font)
+        text = fm.elidedText(self.title, Qt.TextElideMode.ElideRight, rect.width() * lod - 12)
+        box = QRectF(0, 0, fm.horizontalAdvance(text) + 8.0, fm.height() + 2)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(alpha(t.surface, 215)))
+        painter.drawRoundedRect(box, 4, 4)
+        painter.setPen(pen(t.text, 1))
+        painter.drawText(box, Qt.AlignmentFlag.AlignCenter, text)
+        painter.restore()
 
     def _paint_far(
         self, painter: QPainter, t: th.Theme, state: Sequence[Conduction], rect: QRectF
@@ -416,8 +439,7 @@ class SchematicItem(CellItem):
                     value(text.node),
                     text.kind,
                     text.node == local_hover,
-                    clickable=self.board.inputs_clickable
-                    and self.input_port(text.node) is not None,
+                    clickable=self.node_id(text.node) in self.board.clickable_nodes,
                 )
 
     def _paint_flow(self, painter: QPainter, t: th.Theme) -> None:
@@ -445,10 +467,9 @@ class SchematicItem(CellItem):
             w = measure(text.text)
             x0 = _aligned(text.x, w, text.align)
             if x0 - 4 <= x <= x0 + w + 4 and abs(y - text.y) <= 10:
-                port = self.input_port(text.node)
                 real = self.node_id(text.node)
-                if port is not None and self.board.inputs_clickable:
-                    return Hit(self, "input", node=real, port=port)
+                if real in self.board.clickable_nodes:
+                    return Hit(self, "input", node=real, port=self.input_port(text.node))
                 return Hit(self, "node", node=real)
         for d in self.geo.devices:
             x0, y0, x1, y1 = d.bounds()
@@ -685,18 +706,23 @@ class SiliconItem(CellItem):
 
     def _paint_pins(self, painter: QPainter, t: th.Theme, value: Callable[[int], Logic]) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        lod = painter.worldTransform().m11()
+        shrink = min(1.0, 1.5 / lod) if lod > 0 else 1.0  # con mucho zoom no crecen más
         fm = QFontMetricsF(PIN_FONT)
-        painter.setFont(PIN_FONT)
         for p in self.lay.pins:
             text = f"{p.text}={logic_text(value(p.node))}"
             w = fm.horizontalAdvance(text) + 6
-            y = self._y(p.y)
-            box = QRectF(p.x - w / 2, y - 6.5, w, 13)
+            painter.save()
+            painter.translate(p.x, self._y(p.y))
+            painter.scale(shrink, shrink)
+            box = QRectF(-w / 2, -6.5, w, 13)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(alpha("#0b0c10", 200)))
             painter.drawRoundedRect(box, 3, 3)
+            painter.setFont(PIN_FONT)
             painter.setPen(pen(t.logic(value(p.node)).lighter(130), 1))
             painter.drawText(box, Qt.AlignmentFlag.AlignCenter, text)
+            painter.restore()
 
     def hit(self, pos: QPointF) -> Hit | None:
         x, y = pos.x(), self._y(pos.y())
@@ -706,10 +732,9 @@ class SiliconItem(CellItem):
         for layer in ("metal2", "via", "metal1", "contact", "poly", "pdiff", "ndiff"):
             for s in self._by_layer[layer]:
                 if s.node is not None and s.x0 <= x <= s.x1 and s.y0 <= y <= s.y1:
-                    port = self.input_port(s.node)
                     real = self.node_id(s.node)
-                    if port is not None and self.board.inputs_clickable and layer != "pdiff":
-                        return Hit(self, "input", node=real, port=port)
+                    if real in self.board.clickable_nodes:
+                        return Hit(self, "input", node=real, port=self.input_port(s.node))
                     return Hit(self, "node", node=real)
         return Hit(self, "cell")
 
@@ -717,6 +742,10 @@ class SiliconItem(CellItem):
 def silicon_background(t: th.Theme) -> str:
     """Color del sustrato p en el layout."""
     return "#121418" if t.dark else "#f4f1e8"
+
+
+GAP_LABEL = 70.0
+"""Espacio entre bloques del plano del chip (deja sitio para sus nombres)."""
 
 
 class FrameItem(QGraphicsItem):
@@ -735,7 +764,7 @@ class FrameItem(QGraphicsItem):
         self.setAcceptHoverEvents(False)
 
     def boundingRect(self) -> QRectF:  # noqa: N802
-        return self.rect.adjusted(-12, -400 if self.die else -12, 12, 12)
+        return self.rect.adjusted(-12, -400 if self.die else -GAP_LABEL, 12, 12)
 
     def paint(
         self,
@@ -762,8 +791,11 @@ class FrameItem(QGraphicsItem):
             return
         painter.save()
         inset = 6 / lod
-        top = self.rect.top() - 30 / lod if self.die else self.rect.top() + inset
-        painter.translate(self.rect.left() + (0 if self.die else inset), top)
+        outside = self.die or GAP_LABEL * lod >= 30  # hay sitio encima del recuadro
+        top = (
+            self.rect.top() - (30 if self.die else 28) / lod if outside else self.rect.top() + inset
+        )
+        painter.translate(self.rect.left() + (0 if outside else inset), top)
         painter.scale(1 / lod, 1 / lod)
         painter.setFont(_font(12.0 if self.die else 9.5, bold=True))
         fm = QFontMetricsF(painter.font())
@@ -795,7 +827,8 @@ class CircuitScene(QGraphicsScene):
         self.hover_transistor: int | None = None
         self.selected_item: CellItem | None = None
         self.selected_transistor: int | None = None
-        self.inputs_clickable = False
+        self.clickable_nodes: set[int] = set()
+        """Nodos reales que se pueden cambiar con un clic (las entradas de la celda)."""
         self.show_paths = True
         self.show_heat = False
         self.show_toggles = False
@@ -819,14 +852,18 @@ class CircuitScene(QGraphicsScene):
         self.update()
 
     # ----------------------------------------------------------- contenido
-    def _reset(self, values: ValueReader, clickable: bool, mode: str) -> None:
+    @property
+    def inputs_clickable(self) -> bool:
+        return bool(self.clickable_nodes)
+
+    def _reset(self, values: ValueReader, clickable: set[int], mode: str) -> None:
         self.clear()
         self.cells = []
         self.flows = {}
         self.hover_node = self.hover_item = self.hover_transistor = None
         self.selected_item = self.selected_transistor = None
         self.values = values
-        self.inputs_clickable = clickable
+        self.clickable_nodes = set(clickable)
         self.mode = mode
 
     def _index(self) -> None:
@@ -839,10 +876,14 @@ class CircuitScene(QGraphicsScene):
         self.apply_theme()
 
     def show_schematics(
-        self, cells: Sequence[tuple[Binding, str]], values: ValueReader, *, clickable: bool = False
+        self,
+        cells: Sequence[tuple[Binding, str]],
+        values: ValueReader,
+        *,
+        clickable: set[int] | None = None,
     ) -> None:
         """Dibuja ``cells`` (enlace, título) como esquemas, en filas."""
-        self._reset(values, clickable, "schematic")
+        self._reset(values, clickable or set(), "schematic")
         items = [SchematicItem(b, title, self) for b, title in cells]
         area = sum(i.geo.width * i.geo.height for i in items)
         max_w = max([i.geo.width for i in items] + [math.sqrt(area) * 1.5]) if items else 0
@@ -862,7 +903,7 @@ class CircuitScene(QGraphicsScene):
         groups: Sequence[tuple[str, Sequence[tuple[Binding, str]]]],
         values: ValueReader,
         *,
-        clickable: bool = False,
+        clickable: set[int] | None = None,
         die: tuple[str, str] | None = None,
     ) -> None:
         """Dibuja las celdas como layout, en filas de celdas estándar.
@@ -872,13 +913,13 @@ class CircuitScene(QGraphicsScene):
                 solo las filas; con varios, cada bloque en su recuadro (plano del chip).
             die: (título, subtítulo) del recuadro del chip, si se quiere.
         """
-        self._reset(values, clickable, "silicon")
+        self._reset(values, clickable or set(), "silicon")
         built = [
             (name, [SiliconItem(b, title, self) for b, title in cells]) for name, cells in groups
         ]
         framed = len(built) > 1 or (bool(built) and built[0][0] != "")
         for (name, items), rect in zip(
-            built, _floorplan(built, 70.0 if framed else 0.0), strict=True
+            built, _floorplan(built, GAP_LABEL if framed else 0.0), strict=True
         ):
             for item in items:
                 self.addItem(item)

@@ -98,7 +98,7 @@ LIGHT = Theme(
     grid="#e8ebf0",
     ink="#2a2f37",
     frame="#cfd4dc",
-    halo="#fde68a",
+    halo="#f8c51c",
     select="#4f46e5",
     sign="#e11d48",
     exponent="#2563eb",
@@ -130,7 +130,7 @@ DARK = Theme(
     grid="#20232a",
     ink="#cfd4dc",
     frame="#3a3f49",
-    halo="#6b5a12",
+    halo="#f2c230",
     select="#a5a6ff",
     sign="#fb7185",
     exponent="#60a5fa",
@@ -248,13 +248,15 @@ def stylesheet(t: Theme) -> str:
     }}
     QPushButton#primary:hover {{ background: {t.select}; }}
     QPushButton#primary:disabled {{ background: {t.border}; color: {t.muted}; }}
-    QPushButton#segment {{ border-radius: 0; padding: 6px 12px; min-width: 34px; }}
+    QPushButton#segment {{ border-radius: 0; padding: 6px 12px; }}
+    QPushButton#segment[position="first"] {{
+        border-top-left-radius: 7px; border-bottom-left-radius: 7px;
+    }}
+    QPushButton#segment[position="last"] {{
+        border-top-right-radius: 7px; border-bottom-right-radius: 7px;
+    }}
     QPushButton#segment:checked {{
         background: {t.accent}; color: {t.accent_text}; border-color: {t.accent};
-        font-weight: 700;
-    }}
-    QPushButton#segmentFirst {{
-        border-top-right-radius: 0; border-bottom-right-radius: 0; padding: 6px 12px;
     }}
     QPushButton#tool {{ padding: 5px 10px; }}
     QPushButton#chip {{

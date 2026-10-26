@@ -6,6 +6,22 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 ## [Sin publicar]
 
 ### Agregado
+- Vistas de la pestaña Transistores (ADR-0015): **esquema CMOS** de cada celda (redes
+  serie-paralelo, transmission gates y cables entre etapas), **silicio** (layout
+  ilustrativo de celdas estándar verificado contra el netlist, filas de celdas y plano
+  del chip completo) y **corte transversal** del transistor elegido.
+- Interacción en el dibujo: resaltar un nodo en todas las celdas a las que llega, fijar
+  un transistor, cambiar entradas con un clic, doble clic para entrar en una celda o un
+  bloque, menú contextual, ruta de navegación, buscador, mapa de actividad, resaltado de
+  conmutaciones y exportar a PNG. Biblioteca con tabla de verdad; HA y DFF incluidos.
+- Pestaña Operación: validación al escribir, ejemplos de casos notables, verificación
+  contra el modelo de referencia, vista de bits en la que un clic invierte un bit,
+  barra de ciclos por etapa, gráfico de actividad e historial.
+- Pestaña Programa: editor con números de línea y resaltado, marca de la instrucción
+  que sigue y de la línea con error, registros que cambian resaltados, FSR con sus
+  indicadores y memoria de programa desensamblada.
+- Ventana: menús, atajos de teclado, barra de estado, tema claro u oscuro, guía rápida
+  (F1) y Acerca de; recuerda tamaño, pestaña y tema.
 - Pestaña Transistores en la GUI: dibuja cada nMOS y pMOS de una celda con el estado
   real del motor (canal que conduce, valores de compuerta, fuente y drenador) y permite
   bajar por la jerarquía de la unidad de la última operación hasta cada celda.
@@ -17,7 +33,16 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   en un mismo plano; las etiquetas usan los puertos de cada celda y el lienzo es claro
   también con el tema oscuro.
 
+### Corregido
+- El motor `switch` lanzaba `OscillationError` en la división binary32 (por ejemplo,
+  1 / 3) aunque el circuito se estabiliza: el límite de eventos de las unidades pasa de
+  10 a 100 cambios por nodo.
+- Las pruebas de la GUI comparten una sola `QApplication`; antes el proceso podía
+  terminar con una violación de segmento al salir.
+
 ### Cambiado
+- La GUI se divide en módulos (modelo sin Qt, widgets, una pestaña por archivo) y usa su
+  propio tema con el estilo Fusion; cabe en una pantalla de 1280 × 720.
 - La pestaña Operación muestra ciclos, actividad por etapa y buses `dbg_` en tablas.
 - El material de organización del equipo (reparto, flujo de contribución, lista de tareas
   y guías por módulo) pasa a `interno/equipo/`.

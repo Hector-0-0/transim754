@@ -21,6 +21,7 @@ anterior se conserva y se marca como "Reemplazada por ADR-XXXX".
 | [0012](0012-ia-localizada.md) | Asistente de IA localizado que nunca calcula | Aceptada |
 | [0013](0013-metricas.md) | Métricas de transistores, actividad y camino crítico | Aceptada |
 | [0014](0014-ciclos-de-reloj.md) | Ciclos de reloj estimados a partir del camino crítico | Aceptada |
+| [0015](0015-vistas-de-transistores.md) | Vistas de transistores: esquema, silicio y corte | Aceptada |
 
 ## Referencia
 

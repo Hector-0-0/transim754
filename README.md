@@ -19,8 +19,10 @@ Universidad Nacional de Ingeniería, FIIS, 2026-II.
 - Una CPU mínima con ISA propia (T754) ejecuta programas ensamblados desde texto.
 - Los resultados se verifican bit a bit contra numpy; se miden transistores,
   conmutaciones, profundidad lógica y ciclos de reloj estimados (ADR-0014).
-- La GUI baja de los bloques de una unidad hasta cada nMOS y pMOS y muestra cuáles
-  conducen en la operación calculada.
+- La GUI muestra la FPU por fuera (operandos, bits, flags verificados, ciclos) y por
+  dentro: el esquema CMOS de cada celda y una vista de silicio que va del plano del chip
+  a las filas de celdas estándar y a cada transistor, con su corte transversal
+  (ADR-0015).
 
 ## Demo en 3 comandos
 
@@ -59,7 +61,7 @@ flowchart BT
 | [ISA T754](docs/04_isa_t754.md) | instrucciones, codificación y ensamblador |
 | [Métricas](docs/05_metricas.md) | transistores, actividad, camino crítico y ciclos estimados |
 | [Política de IA](docs/06_politica_ia.md) | uso de IA en el software y en el desarrollo |
-| [ADR](docs/adr/README.md) | las 14 decisiones de diseño |
+| [ADR](docs/adr/README.md) | las 15 decisiones de diseño |
 | [Glosario](docs/GLOSARIO.md) | términos técnicos |
 | [Investigación](docs/investigacion/transistores_en_cpus.md) | transistores en las CPU |
 | [Diapositivas de la exposición](docs/exposicion/diapositivas.md) | material de la presentación |
