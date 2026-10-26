@@ -615,7 +615,9 @@ class OperationTab(QWidget):
             self.open_stage.emit(key)
 
     def apply_theme(self) -> None:
-        for w in (self.bitfield, self.flags, self.strip, self.activity, *self.tiles.values()):
+        widgets: list[QWidget] = [self.bitfield, self.flags, self.strip, self.activity]
+        widgets += list(self.tiles.values())
+        for w in widgets:
             w.update()
 
 
