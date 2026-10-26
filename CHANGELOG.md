@@ -22,28 +22,14 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   indicadores y memoria de programa desensamblada.
 - Ventana: menús, atajos de teclado, barra de estado, tema claro u oscuro, guía rápida
   (F1) y Acerca de; recuerda tamaño, pestaña y tema.
-- Pestaña Transistores en la GUI: dibuja cada nMOS y pMOS de una celda con el estado
-  real del motor (canal que conduce, valores de compuerta, fuente y drenador) y permite
-  bajar por la jerarquía de la unidad de la última operación hasta cada celda.
 - Ciclos de reloj estimados a partir del camino crítico, por etapa del datapath, con
   periodo ajustable y conmutaciones por etapa (ADR-0014, `metrics/stages.py`).
 - Antecedentes históricos en la investigación: del transistor de contacto puntual al
   MOSFET, la lógica CMOS y el estándar IEEE 754.
-- Vista de bloque: un bloque de hasta 2 500 transistores se dibuja con todas sus celdas
-  en un mismo plano; las etiquetas usan los puertos de cada celda y el lienzo es claro
-  también con el tema oscuro.
-
-### Corregido
-- El motor `switch` lanzaba `OscillationError` en la división binary32 (por ejemplo,
-  1 / 3) aunque el circuito se estabiliza: el límite de eventos de las unidades pasa de
-  10 a 100 cambios por nodo.
-- Las pruebas de la GUI comparten una sola `QApplication`; antes el proceso podía
-  terminar con una violación de segmento al salir.
 
 ### Cambiado
 - La GUI se divide en módulos (modelo sin Qt, widgets, una pestaña por archivo) y usa su
   propio tema con el estilo Fusion; cabe en una pantalla de 1280 × 720.
-- La pestaña Operación muestra ciclos, actividad por etapa y buses `dbg_` en tablas.
 - El material de organización del equipo (reparto, flujo de contribución, lista de tareas
   y guías por módulo) pasa a `interno/equipo/`.
 - El CLI ya no contiene el respaldo con el modelo de referencia: todas las unidades
@@ -52,6 +38,13 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 ### Eliminado
 - `interno/prompts/` y los scripts de creación y asignación de issues, que solo servían
   para organizar el trabajo en equipo.
+
+### Corregido
+- El motor `switch` lanzaba `OscillationError` en la división binary32 (por ejemplo,
+  1 / 3) aunque el circuito se estabiliza: el límite de eventos de las unidades pasa de
+  10 a 100 cambios por nodo.
+- Las pruebas de la GUI comparten una sola `QApplication`; antes el proceso podía
+  terminar con una violación de segmento al salir.
 
 ## [0.1.0-avance] — 2026-10-10
 
