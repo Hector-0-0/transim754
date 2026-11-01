@@ -221,6 +221,7 @@ class MainWindow(QMainWindow):
 
         self.operation.calculated.connect(self.transistors.show_calculation)
         self.operation.open_stage.connect(self._open_stage)
+        self.operation.open_block.connect(self._open_block)
         self.transistors.go_operation.connect(self._go_operation)
         for tab in (self.operation, self.transistors, self.program):
             tab.status.connect(self._status)
@@ -286,6 +287,10 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(text, 8000)
         else:
             self.statusBar().clearMessage()
+
+    def _open_block(self, path: str) -> None:
+        self.tabs.setCurrentWidget(self.transistors)
+        self.transistors.reveal(path)
 
     def _open_stage(self, key: str) -> None:
         self.tabs.setCurrentWidget(self.transistors)

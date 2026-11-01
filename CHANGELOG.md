@@ -6,6 +6,11 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 ## [Sin publicar]
 
 ### Agregado
+- Esquema paso a paso: «Siguiente» muestra las etapas de una celda en orden de dependencia
+  de señal, resalta sus transistores y atenúa el resto (`gui/steps.py`).
+- Pestaña Operación, «Flujo de datos»: diagrama de los bloques de primer nivel de la
+  operación, con sus salidas, sus valores y las conexiones entre ellos; un clic abre el
+  esquema del bloque en Transistores (`gui/flow.py`).
 - Vistas de la pestaña Transistores (ADR-0015): **esquema CMOS** de cada celda (redes
   serie-paralelo, transmission gates y cables entre etapas), **silicio** (layout
   ilustrativo de celdas estándar verificado contra el netlist, filas de celdas y plano

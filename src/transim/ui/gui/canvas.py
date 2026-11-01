@@ -77,6 +77,9 @@ PIN_FONT = _font(6.5, bold=True)
 # ocre, difusión n verde, polisilicio rojo, metal 1 azul, metal 2 violeta).
 # Las capas usan tonos que no son los de los valores lógicos (rojo = 1, azul = 0, verde =
 # conduce): así un mismo color no significa dos cosas en el esquema y en el silicio.
+DIM_OPACITY = 0.16
+"""Opacidad de lo que no forma parte del paso mostrado en el esquema."""
+
 LAYER_COLOR = {
     "nwell": "#a39338",
     "pdiff": "#c8913a",
@@ -270,7 +273,13 @@ class SchematicItem(CellItem):
         hover_node = self.board.hover_node
         local_hover = self.local_node(hover_node) if hover_node is not None else None
         toggled = self.board.toggled_nodes if self.board.show_toggles else set()
+        focus = self.board.step_filter
+
+        def dim(on: bool) -> None:
+            painter.setOpacity(1.0 if focus is None or on else DIM_OPACITY)
+
         for s in self.geo.segs:
+            dim(focus is None or s.node in focus[1] or s.node in (0, 1))
             if local_hover is not None and s.node == local_hover:
                 painter.setPen(pen(alpha(t.halo, 170), 9))
                 painter.drawLine(QPointF(s.x1, s.y1), QPointF(s.x2, s.y2))
@@ -281,10 +290,13 @@ class SchematicItem(CellItem):
             painter.drawLine(QPointF(s.x1, s.y1), QPointF(s.x2, s.y2))
         painter.setPen(Qt.PenStyle.NoPen)
         for j in self.geo.joints:
+            dim(focus is None or j.node in focus[1])
             painter.setBrush(QBrush(t.logic(value(j.node))))
             painter.drawEllipse(QPointF(j.x, j.y), 3.4, 3.4)
         for d in self.geo.devices:
+            dim(focus is None or d.index in focus[0])
             self._paint_device(painter, t, d, state[d.index], value)
+        painter.setOpacity(1.0)
         if lod > 0.42:
             self._paint_texts(painter, t, value, local_hover)
         else:
@@ -836,6 +848,8 @@ class CircuitScene(QGraphicsScene):
         self.show_toggles = False
         self.color_by_value = False
         self.visible_layers: set[str] = set(TOGGLE_LAYERS)
+        self.step_filter: tuple[frozenset[int], frozenset[int]] | None = None
+        """Paso a paso del esquema: (transistores, nodos) que se resaltan; el resto se atenúa."""
         """Capas del silicio que se dibujan (se eligen con las casillas de la pestaña)."""
         self.toggled_nodes: set[int] = set()
         self.flows: dict[CellItem, set[int]] = {}

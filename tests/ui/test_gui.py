@@ -501,3 +501,48 @@ def test_capas_del_silicio_se_ocultan_con_sus_casillas(ventana: object, qapp: ob
     tr.mode.set_value("schematic", emit=True)
     qapp.processEvents()  # type: ignore[attr-defined]
     assert not tr.layer_row.isVisible()
+
+
+# ------------------------------------------------------- paso a paso y flujo
+def test_paso_a_paso_resalta_y_atenua(ventana: object, qapp: object) -> None:
+    tr = ventana.transistors  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentIndex(1)  # type: ignore[attr-defined]
+    tr.library.select("XOR2")
+    tr.mode.set_value("schematic", emit=True)
+    qapp.processEvents()  # type: ignore[attr-defined]
+    assert not tr.step_row.isHidden()
+    assert tr.scene.step_filter is None
+    tr.step_next.click()
+    filtro = tr.scene.step_filter
+    assert filtro is not None
+    transistores, _nodos = filtro
+    assert transistores == tr.steps[0].transistors
+    assert tr.step_pos == 0
+    assert tr.step_text.text().startswith("Etapa 1 de")
+    tr.step_all.click()
+    assert tr.scene.step_filter is None
+
+
+def test_paso_a_paso_no_aparece_en_silicio(ventana: object, qapp: object) -> None:
+    tr = ventana.transistors  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentIndex(1)  # type: ignore[attr-defined]
+    tr.library.select("NAND2")
+    tr.mode.set_value("silicon", emit=True)
+    qapp.processEvents()  # type: ignore[attr-defined]
+    assert tr.step_row.isHidden()
+    assert tr.scene.step_filter is None
+
+
+def test_diagrama_de_flujo_abre_el_bloque_al_hacer_clic(ventana: object, qapp: object) -> None:
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtTest import QTest
+
+    calcular(qapp, ventana)
+    op = ventana.operation  # type: ignore[attr-defined]
+    recibidos: list[str] = []
+    op.open_block.connect(recibidos.append)
+    flow = op.flow
+    rect = next(it for it in flow.scene().items() if it.data(0) == "order")
+    centro = flow.mapFromScene(rect.sceneBoundingRect().center())
+    QTest.mouseClick(flow.viewport(), Qt.MouseButton.LeftButton, pos=QPoint(centro.x(), centro.y()))
+    assert recibidos == ["order"]
