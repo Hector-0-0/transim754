@@ -34,6 +34,9 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   y guías por módulo) pasa a `interno/equipo/`.
 - El CLI ya no contiene el respaldo con el modelo de referencia: todas las unidades
   están integradas.
+- Silicio: las capas usan colores distintos de los valores lógicos (rojo = 1, azul = 0),
+  el metal se pinta sólido, sin trama, y una fila de casillas permite mostrar u ocultar
+  cada capa.
 
 ### Eliminado
 - `interno/prompts/` y los scripts de creación y asignación de issues, que solo servían
