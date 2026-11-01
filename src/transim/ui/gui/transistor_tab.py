@@ -55,6 +55,7 @@ from transim.ui.gui import theme as th
 from transim.ui.gui.canvas import (
     LAYER_COLOR,
     LAYER_NAMES,
+    TOGGLE_LAYERS,
     CanvasView,
     CellItem,
     CircuitScene,
@@ -398,6 +399,18 @@ class Inspector(QFrame):
 
 
 # ------------------------------------------------------------------ pestaña
+LAYER_SHORT = {
+    "nwell": "Pozo n",
+    "pdiff": "Difusión p",
+    "ndiff": "Difusión n",
+    "poly": "Polisilicio",
+    "contact": "Contactos",
+    "metal1": "Metal 1",
+    "via": "Vías",
+    "metal2": "Metal 2",
+}
+
+
 class TransistorTab(QWidget):
     """Microscopio: de los bloques de una unidad hasta cada transistor."""
 
@@ -498,6 +511,25 @@ class TransistorTab(QWidget):
         for box in (self.paths, self.toggles, self.heat, self.by_value):
             options.addWidget(box)
         options.addStretch(1)
+        # Capas del silicio: solo se ven en esa vista; ocultar una deja ver las demás.
+        self.layer_row = QWidget()
+        lr = QHBoxLayout(self.layer_row)
+        lr.setContentsMargins(0, 0, 0, 0)
+        lr.setSpacing(12)
+        caption = QLabel("Capas:")
+        caption.setObjectName("hint")
+        lr.addWidget(caption)
+        self.layer_boxes: dict[str, QCheckBox] = {}
+        for layer in TOGGLE_LAYERS:
+            box = QCheckBox(LAYER_SHORT[layer])
+            box.setChecked(True)
+            box.setToolTip(f"Mostrar u ocultar: {LAYER_NAMES[layer]}")
+            box.setCursor(Qt.CursorShape.PointingHandCursor)
+            box.toggled.connect(lambda on, k=layer: self._layer_toggled(k, on))
+            self.layer_boxes[layer] = box
+            lr.addWidget(box)
+        lr.addStretch(1)
+        self.layer_row.setVisible(False)
         self.info = QLabel()
         self.info.setWordWrap(True)
         self.info.setObjectName("hint")
@@ -511,6 +543,7 @@ class TransistorTab(QWidget):
         cl.addWidget(self.breadcrumb)
         cl.addLayout(bar)
         cl.addLayout(options)
+        cl.addWidget(self.layer_row)
         cl.addWidget(self.info)
         frame = QFrame()
         frame.setObjectName("card")
@@ -615,6 +648,15 @@ class TransistorTab(QWidget):
         self.toggles.setEnabled(op and not self.silicon)
         self.heat.setEnabled(op)
         self.by_value.setEnabled(self.silicon)
+        self.layer_row.setVisible(self.silicon)
+
+    def _layer_toggled(self, layer: str, shown: bool) -> None:
+        """Muestra u oculta una capa del silicio y repinta."""
+        if shown:
+            self.scene.visible_layers.add(layer)
+        else:
+            self.scene.visible_layers.discard(layer)
+        self.scene.refresh()
 
     def _apply_heat(self) -> None:
         if not (self.heat.isChecked() and self.heat.isEnabled() and self.unit is not None):

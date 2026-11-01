@@ -477,3 +477,27 @@ def test_atajos_de_programa_y_de_vista(ventana: object, qapp: object) -> None:
     assert tr.silicon
     QTest.keyClick(tr.view, Qt.Key.Key_E, Qt.KeyboardModifier.AltModifier)
     assert not tr.silicon
+
+
+def test_capas_del_silicio_se_ocultan_con_sus_casillas(ventana: object, qapp: object) -> None:
+    from transim.ui.gui import theme as th
+    from transim.ui.gui.canvas import LAYER_COLOR, TOGGLE_LAYERS
+
+    tr = ventana.transistors  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentIndex(1)  # type: ignore[attr-defined]
+    tr.library.select("NOR2")
+    tr.mode.set_value("silicon", emit=True)
+    qapp.processEvents()  # type: ignore[attr-defined]
+    assert not tr.layer_row.isHidden()
+    assert set(tr.scene.visible_layers) == set(TOGGLE_LAYERS)
+    tr.layer_boxes["metal1"].setChecked(False)
+    assert "metal1" not in tr.scene.visible_layers
+    tr.layer_boxes["metal1"].setChecked(True)
+    assert "metal1" in tr.scene.visible_layers
+    # Los colores de las capas no coinciden con los de los valores lógicos.
+    t = th.current()
+    assert LAYER_COLOR["poly"] not in (t.one, t.zero)
+    assert LAYER_COLOR["metal1"] not in (t.one, t.zero)
+    tr.mode.set_value("schematic", emit=True)
+    qapp.processEvents()  # type: ignore[attr-defined]
+    assert not tr.layer_row.isVisible()
