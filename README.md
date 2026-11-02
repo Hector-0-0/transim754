@@ -1,80 +1,56 @@
-# TranSim754
+# TranSim754 (rama de exposición)
 
-Procesador con transistores simulados: una FPU IEEE 754 (binary32) y una ALU entera
-construidas desde transistores nMOS/pMOS sobre un simulador switch-level escrito en
-Python.
+Procesador con transistores simulados: una unidad de punto flotante IEEE 754 que suma,
+resta, multiplica y divide haciendo conducir transistores nMOS y pMOS, sin usar las
+operaciones de Python.
 
-Proyecto del curso Arquitectura de Computadoras y Sistemas Operativos (SI421U),
-Universidad Nacional de Ingeniería, FIIS, 2026-II.
+Esta rama tiene solo lo necesario para exponer: el programa y el material de la
+exposición. El proyecto completo, con las pruebas y la documentación de diseño, está en
+la rama `main`.
 
-[![CI](https://github.com/Hector-0-0/transim754/actions/workflows/ci.yml/badge.svg)](https://github.com/Hector-0-0/transim754/actions/workflows/ci.yml)
+## Contenido
 
-## Qué es
+| Carpeta o archivo | Qué es |
+|---|---|
+| `src/transim/` | El programa: transistores, celdas, bloques, FPU e interfaz |
+| `exposicion/TranSim754_exposicion_final.html` | La presentación (se abre con el navegador) |
+| `exposicion/GUION.txt` | El guion: qué dice cada integrante y qué hace en el programa |
+| `exposicion/GUIA_CODIGO.txt` | Qué archivos y líneas explica cada integrante |
 
-- Cada transistor es un interruptor (nMOS conduce con compuerta en 1, pMOS con 0) en
-  un simulador de cuatro valores lógicos (0, 1, X, Z) y tres fuerzas.
-- Con esos transistores se construyen compuertas CMOS, sumadores, desplazadores, una
-  ALU entera de 32 bits y una FPU que suma, resta, multiplica y divide en IEEE 754-2019
-  binary32 con redondeo al par más cercano, subnormales, ±0, ±∞, NaN y los cinco flags.
-- Una CPU mínima con ISA propia (T754) ejecuta programas ensamblados desde texto.
-- Los resultados se verifican bit a bit contra numpy; se miden transistores,
-  conmutaciones, profundidad lógica y ciclos de reloj estimados (ADR-0014).
-- La GUI muestra la FPU por fuera (operandos, bits, flags verificados, ciclos), el
-  recorrido paso a paso de cada operación por las etapas del hardware con sus valores,
-  y por dentro: el esquema CMOS de cada celda y una vista de silicio que va del plano del chip
-  a las filas de celdas estándar y a cada transistor, con su corte transversal
-  (ADR-0015).
+## Instalar y abrir
 
-## Demo en 3 comandos
+Requiere Python 3.12. Con uv no hace falta instalarlo aparte.
+
+En Linux o macOS, con `make`:
 
 ```bash
-git clone https://github.com/Hector-0-0/transim754.git && cd transim754
-make install
-make demo        # transim calc 1.5 + 2.25 --format binary32 --trace
+make install-gui   # una sola vez
+make gui           # abre el programa
 ```
 
-> Estado (v0.1.0-avance): FADD, FSUB, FMUL y FDIV se calculan en transistores en binary32
-> y binary16; `transim calc`, `asm`, `run`, `metrics` y `gui` funcionan.
+Con uv, en cualquier sistema:
 
-Requisitos: Python 3.12 y `make`. La GUI necesita además `make install-gui`.
-`make gui` la abre en modo exposición: oscuro, sin menús ni atajos, con las pestañas
-Operación, Recorrido y Transistores. Con uv: `uv run --extra gui transim gui`. `transim gui --completo` muestra además los menús,
-la pestaña Programa y el historial (ADR-0019).
-
-## Arquitectura
-
-```mermaid
-flowchart BT
-    L0["L0 · core: transistores, nodos, motores switch/cached"]
-    L1["L1 · cells: compuertas CMOS, MUX2, sumador completo, flip-flop"]
-    L2["L2 · blocks + alu: sumadores, desplazador, LZC, comparador, ALU entera"]
-    L3["L3 · fpu: FADD, FSUB, FMUL, FDIV, redondeo, flags"]
-    L4["L4 · cpu: ISA T754, registros, decodificador, control"]
-    L5["L5 · ui: CLI transim y GUI"]
-    L0 --> L1 --> L2 --> L3 --> L4 --> L5
+```bash
+uv run --extra gui transim gui
 ```
 
-## Documentación
+En Windows, sin `make` ni uv:
 
-| Documento | Contenido |
-|---|---|
-| [Propuesta (avance)](docs/00_propuesta.md) | problema, objetivos, alcance, decisiones, plan y cronograma |
-| [Arquitectura](docs/01_arquitectura.md) | capas L0–L5 y recorrido de una FADD |
-| [Simulador switch-level](docs/02_simulador_switch_level.md) | modelo del transistor y algoritmo |
-| [IEEE 754](docs/03_ieee754.md) | formatos, redondeo, flags y 6 ejemplos resueltos bit a bit |
-| [ISA T754](docs/04_isa_t754.md) | instrucciones, codificación y ensamblador |
-| [Métricas](docs/05_metricas.md) | transistores, actividad, camino crítico y ciclos estimados |
-| [Política de IA](docs/06_politica_ia.md) | uso de IA en el software y en el desarrollo |
-| [ADR](docs/adr/README.md) | las 19 decisiones de diseño |
-| [Glosario](docs/GLOSARIO.md) | términos técnicos |
-| [Investigación](docs/investigacion/transistores_en_cpus.md) | transistores en las CPU |
-| [Diapositivas de la exposición](docs/exposicion/diapositivas.md) | material de la presentación |
+```bash
+py -3.12 -m venv .venv
+.venv\Scripts\pip install -e ".[gui]"
+.venv\Scripts\transim gui
+```
 
-## Equipo
+El programa abre en modo exposición: oscuro, sin menús ni atajos de teclado, con las
+pestañas Operación, Recorrido y Transistores. `transim gui --completo` muestra además
+los menús, la pestaña Programa y el historial.
 
-Héctor David Flores Sánchez (líder técnico), Daniel, Jairo, Ronald, Fabricio y Yenny.
-Docente: Carlos Nelson Ramos Montes.
+En la consola: `make demo` calcula 1.5 + 2.25 con los transistores y muestra los buses
+internos.
 
-## Licencia
+## Autores
 
-[MIT](LICENSE)
+Alcantara Miranda, Sergio Daniel; Ancajima Cruz, Fabrizzio Alessandro; Ayala Zubilete,
+Matthews Ronald; Chávez Yauri, Yenny Esther; Flores Sánchez, Héctor David; Huamán Choque,
+Jairo Jhosimar. SI421U, FIIS, Universidad Nacional de Ingeniería, 2026-II.
