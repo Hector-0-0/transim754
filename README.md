@@ -38,7 +38,7 @@ make demo        # transim calc 1.5 + 2.25 --format binary32 --trace
 
 Requisitos: Python 3.12 y `make`. La GUI necesita además `make install-gui`.
 `make gui` la abre en modo exposición: oscuro, sin menús ni atajos, con las pestañas
-Operación, Recorrido y Transistores. `transim gui --completo` muestra además los menús,
+Operación, Recorrido y Transistores. Con uv: `uv run --extra gui transim gui`. `transim gui --completo` muestra además los menús,
 la pestaña Programa y el historial (ADR-0019).
 
 ## Arquitectura

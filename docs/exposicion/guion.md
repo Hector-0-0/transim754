@@ -22,7 +22,10 @@ preguntas.
 
 ## Antes de exponer (5 minutos antes, en la computadora del aula)
 
-1. Abrir el programa con `uv run transim gui` y maximizar la ventana.
+1. Si la computadora no tiene el programa: «git clone -b exposicion
+   https://github.com/Hector-0-0/transim754.git», entrar a la carpeta y, una sola vez,
+   «make install-gui». Para abrirlo: «make gui» (o «uv run --extra gui transim gui») y
+   maximizar la ventana.
 2. En Operación, calcular 1 ÷ 3 (prepara la unidad de división, que es la más grande).
 3. Luego calcular 1 + 1. NO calcular 1.5 + 2.25 antes: si se repite la misma suma, el
    acarreo no tiene nada que mostrar porque nada cambia.
@@ -246,7 +249,7 @@ número más grande por 2 desborda a infinito.
 
 Para saber que todo es correcto, comparamos cada resultado con un modelo de referencia
 y con NumPy, en los casos borde y en 10 000 pares al azar por operación. No hubo
-ninguna diferencia, ni en los bits ni en los flags. El proyecto tiene 626 pruebas
+ninguna diferencia, ni en los bits ni en los flags. El proyecto tiene 628 pruebas
 automáticas que se corren cada vez que cambiamos algo.
 En conclusión: partimos de un transistor que solo es un interruptor y llegamos a una
 máquina de unos 100 600 transistores que suma, resta, multiplica y divide según IEEE

@@ -293,3 +293,17 @@ def test_operacion_repetida_lo_dice_en_la_propagacion(expo: object, qapp: object
     expo.operation.a.set_text("1")  # type: ignore[attr-defined]
     expo.operation.run()  # type: ignore[attr-defined]
     esperar(qapp, lambda: not expo.operation._busy)  # type: ignore[attr-defined]
+
+
+def test_pantalla_vacia_sin_texto_recortado(expo: object, qapp: object) -> None:
+    """Sin operación, Recorrido muestra un título, una línea y un botón; cada texto tiene
+    el alto que necesita (antes salía cortado arriba y abajo)."""
+    rec = expo.walkthrough  # type: ignore[attr-defined]
+    expo.tabs.setCurrentWidget(rec)  # type: ignore[attr-defined]
+    qapp.processEvents()  # type: ignore[attr-defined]
+    vacia = rec.stack.widget(0)
+    textos = [w for w in vacia.findChildren(QLabel) if w.isVisible()]
+    assert any("Todavía no hay una operación" in w.text() for w in textos)
+    for w in textos:
+        necesita = w.heightForWidth(w.width()) if w.wordWrap() else w.sizeHint().height()
+        assert w.height() >= necesita, w.text()

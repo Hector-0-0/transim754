@@ -351,17 +351,19 @@ class HierarchyPanel(QWidget):
         empty = QWidget()
         empty_layout = QVBoxLayout(empty)
         empty_layout.addStretch(1)
-        msg = QLabel(
-            "Todavía no hay una operación.\n\nCalcule una en la pestaña Operación y aquí "
-            "podrá recorrer su hardware: del chip a los bloques, a las celdas y a cada "
-            "transistor."
-        )
+        msg = QLabel("Todavía no hay una operación. Calcule una en la pestaña Operación.")
+        msg.setObjectName("muted")
         msg.setWordWrap(True)
         msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
         go = QPushButton("Ir a Operación")
+        go.setObjectName("primary")
         go.clicked.connect(self.go_operation)
         empty_layout.addWidget(msg)
-        empty_layout.addWidget(go, 0, Qt.AlignmentFlag.AlignCenter)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(go)
+        row.addStretch(1)
+        empty_layout.addLayout(row)
         empty_layout.addStretch(2)
         full = QWidget()
         full_layout = QVBoxLayout(full)
@@ -814,7 +816,7 @@ class TransistorTab(QWidget):
         cell = self.scene.cells[0]
         if self.step_pos < 0:
             self.scene.step_filter = None
-            self.step_text.setText(f"{n} etapas")
+            self.step_text.setText(f"{n} etapa" if n == 1 else f"{n} etapas")
         else:
             done = self.steps[: self.step_pos + 1]
             transistors = frozenset().union(*(st.transistors for st in done))
@@ -1148,7 +1150,7 @@ class TransistorTab(QWidget):
         n = len(cell.transistors)
         on = sum(1 for t in cell.transistors if engine.conduction(t) is Conduction.ON)
         self.breadcrumb.setText(
-            f"Biblioteca › <b>{cell.name}</b> — {DESCRIPTIONS.get(cell.name, '')}"
+            f"Biblioteca: <b>{cell.name}</b>, {DESCRIPTIONS.get(cell.name, '')}"
         )
         self.info.setText(
             f"{cell.name}: {on} de {n} transistores conducen con estas entradas. Haga clic en "

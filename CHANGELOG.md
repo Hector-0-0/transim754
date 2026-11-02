@@ -106,6 +106,10 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   para organizar el trabajo en equipo.
 
 ### Corregido
+- Sin operación, Recorrido mostraba el texto cortado arriba y abajo; ahora es una
+  pantalla con título, una línea y el botón, con el alto que necesita.
+- `transim gui` sin PySide6 terminaba con un error de Python; ahora explica cómo
+  instalarla (`make install-gui` o `uv run --extra gui transim gui`).
 - La rueda del ratón cambiaba de pestaña y cambiaba el motor o el periodo de reloj al
   pasar por encima; ahora solo cambia un valor si antes se hizo clic en él.
 - No se veían las flechas del periodo de reloj ni de la lista del motor, y «Ver ▾» y

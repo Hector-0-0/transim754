@@ -14,11 +14,14 @@ En el navegador, sin instalar nada
   Abre cualquier enlace de esta guía. GitHub resalta las líneas indicadas.
 
 En tu computadora
+  Hay dos ramas. Para exponer basta la rama «exposicion»: tiene el programa, la
+  presentación, el guion y esta guía. Las pruebas (tests/) y la documentación completa
+  están en la rama «main»; los enlaces de esta guía abren main.
   1. La primera vez:
-       git clone https://github.com/Hector-0-0/transim754.git
+       git clone -b exposicion https://github.com/Hector-0-0/transim754.git
        cd transim754
        make install-gui
-     Las veces siguientes, para tener lo último:
+     (para todo el proyecto, sin «-b exposicion»). Las veces siguientes:
        git pull
   2. Abre la carpeta en VS Code:  code .
   3. Atajos de VS Code que sirven para esta guía:
@@ -31,8 +34,9 @@ En tu computadora
 Para verlo funcionar
   make gui        abre el programa en modo exposición (lo que se muestra en clase)
   make demo       calcula 1.5 + 2.25 en la consola y muestra los buses internos
-  make test       corre las pruebas rápidas (609)
-  Con uv también funciona:  uv run transim gui   y   uv run transim calc 1 / 3 --trace
+  make test       corre las pruebas rápidas (611; solo en la rama main)
+  Con uv:  uv run --extra gui transim gui  (la interfaz)  y
+           uv run transim calc 1 / 3 --trace  (la consola)
 
 Mapa de carpetas (src/transim/)
   core/        L0: transistor, nodos, valores lógicos y los dos simuladores
@@ -43,7 +47,7 @@ Mapa de carpetas (src/transim/)
   ui/          L5: la consola (cli.py) y la interfaz gráfica (gui/)
   metrics/     conteo de transistores, camino crítico, ciclos y actividad
   reference/   modelo de referencia en Python puro, para comparar
-  tests/       las pruebas (fuera de src/, en la raíz del proyecto)
+  tests/       las pruebas (en la raíz del proyecto, rama main)
 
 
 ======================================================================
@@ -89,7 +93,7 @@ src/transim/ui/cli.py
   lo calcula en transistores y muestra el resultado y los flags.
   https://github.com/Hector-0-0/transim754/blob/main/src/transim/ui/cli.py#L128-L171
   gui (línea 247): el comando «transim gui»; con «--completo» abre todo.
-  https://github.com/Hector-0-0/transim754/blob/main/src/transim/ui/cli.py#L247-L265
+  https://github.com/Hector-0-0/transim754/blob/main/src/transim/ui/cli.py#L247-L271
 
 src/transim/ui/gui/app.py
   MainWindow (línea 225): la ventana con las pestañas. En modo exposición oculta los
@@ -250,7 +254,7 @@ L3, la FPU
 El plano del chip
   src/transim/ui/gui/floorplan.py, squarify (línea 70): reparte el rectángulo en
   bloques con área proporcional a sus transistores.
-  src/transim/ui/gui/transistor_tab.py, _tiles (línea 986): arma los rectángulos de
+  src/transim/ui/gui/transistor_tab.py, _tiles (línea 988): arma los rectángulos de
   cada bloque con su nombre y su color.
 
 Dónde se ve: pestaña Transistores, Última operación: el plano. Doble clic en un bloque
@@ -322,7 +326,7 @@ Verificación
   https://github.com/Hector-0-0/transim754/blob/main/tests/fpu/comun.py#L14-L38
   Las pruebas de aceptación: test_aceptacion en tests/fpu/test_suma_resta.py (línea
   36), tests/fpu/test_multiplicacion.py (línea 61) y tests/fpu/test_division.py (línea
-  64). Se corren con «make test-all» (tardan varios minutos).
+  64). Se corren con «make test-all» en la rama main (tardan varios minutos).
 
 Extra, la CPU (por si preguntan)
   src/transim/cpu/isa.py (las instrucciones) y src/transim/cpu/machine.py, Machine

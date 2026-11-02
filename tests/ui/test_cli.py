@@ -57,3 +57,13 @@ def test_metrics(tmp_path: Path) -> None:
 @pytest.mark.parametrize("comando", ["calc", "asm", "run", "metrics", "gui", "version"])
 def test_comandos_registrados(comando: str) -> None:
     assert runner.invoke(app, [comando, "--help"]).exit_code == 0
+
+
+def test_gui_sin_pyside6_explica_como_instalarla(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+
+    monkeypatch.setitem(sys.modules, "transim.ui.gui.app", None)  # import → ImportError
+    r = runner.invoke(app, ["gui"])
+    assert r.exit_code == 1
+    assert "make install-gui" in r.output
+    assert "uv run --extra gui transim gui" in r.output

@@ -149,7 +149,7 @@ $ transim calc 1.5 + 2.25 --trace
 - Cada bloque se compara con un **modelo de referencia**, y este con NumPy.
 - Cuatro operaciones × dos formatos: todos los pares borde y 10 000 aleatorios.
 - **0 discrepancias** bit a bit, incluidos los cinco flags.
-- 626 pruebas automáticas; las 609 rápidas corren en cada cambio.
+- 628 pruebas automáticas; las 611 rápidas corren en cada cambio.
 
 ## Transistores por unidad
 

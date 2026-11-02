@@ -777,6 +777,52 @@ class _ClickFilter(QObject):
         return False
 
 
+EMPTY_WIDTH = 460
+"""Ancho del texto de un estado vacío: con un ancho fijo, Qt calcula bien su alto."""
+
+
+def empty_state(title: str, text: str, button: str, on_click: object) -> QWidget:
+    """Pantalla de «todavía no hay nada»: un título, una línea y un botón, centrados.
+
+    El texto se agrega al layout sin alineación y con ancho fijo: con alineación, Qt le
+    da la altura de una sola línea y el texto ajustado sale recortado.
+    """
+    box = QWidget()
+    box.setFixedWidth(EMPTY_WIDTH)
+    inner = QVBoxLayout(box)
+    inner.setContentsMargins(0, 0, 0, 0)
+    inner.setSpacing(10)
+    head = QLabel(title)
+    head.setObjectName("bigResult")
+    head.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+    body = QLabel(text)
+    body.setObjectName("muted")
+    body.setWordWrap(True)
+    body.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+    go = QPushButton(button)
+    go.setObjectName("primary")
+    go.setCursor(Qt.CursorShape.PointingHandCursor)
+    go.clicked.connect(on_click)
+    inner.addWidget(head)
+    inner.addWidget(body)
+    inner.addSpacing(6)
+    row = QHBoxLayout()
+    row.addStretch(1)
+    row.addWidget(go)
+    row.addStretch(1)
+    inner.addLayout(row)
+    page = QWidget()
+    outer = QVBoxLayout(page)
+    outer.addStretch(1)
+    middle = QHBoxLayout()
+    middle.addStretch(1)
+    middle.addWidget(box)
+    middle.addStretch(1)
+    outer.addLayout(middle)
+    outer.addStretch(2)
+    return page
+
+
 class WheelGuard(QObject):
     """La rueda del ratón no cambia de pestaña ni cambia el valor de una lista o de un
     cuadro numérico que no se eligió antes con un clic. Así, al desplazarse por la
@@ -817,6 +863,7 @@ __all__ = [
     "StatTile",
     "WheelGuard",
     "card",
+    "empty_state",
     "flag_keys",
     "guard_wheel",
     "hint",

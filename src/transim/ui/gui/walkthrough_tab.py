@@ -41,7 +41,7 @@ from PySide6.QtWidgets import (
 from transim.ui.gui import theme as th
 from transim.ui.gui import walkthrough as wt
 from transim.ui.gui.model import Calculation, unit_title
-from transim.ui.gui.widgets import card, hint, stage_color, thousands
+from transim.ui.gui.widgets import card, empty_state, hint, stage_color, thousands
 
 BOX_W = 236.0
 BOX_H = 92.0
@@ -429,24 +429,12 @@ class WalkthroughTab(QWidget):
         self.timer.timeout.connect(self._tick)
 
         # Estado vacío.
-        empty = QWidget()
-        el = QVBoxLayout(empty)
-        el.addStretch(1)
-        msg = QLabel(
-            "Todavía no hay una operación.\n\nCalcule una en la pestaña Operación y aquí "
-            "podrá recorrerla paso a paso: cómo la FPU desempaqueta los operandos, alinea "
-            "las mantisas, suma, normaliza y redondea, con los bits de la simulación."
+        empty = empty_state(
+            "Todavía no hay una operación",
+            "Calcule una en la pestaña Operación y aquí la verá paso a paso.",
+            "Ir a Operación",
+            self.go_operation,
         )
-        msg.setWordWrap(True)
-        msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        msg.setMaximumWidth(560)
-        go = QPushButton("Ir a Operación")
-        go.setObjectName("primary")
-        go.clicked.connect(self.go_operation)
-        el.addWidget(msg, 0, Qt.AlignmentFlag.AlignCenter)
-        el.addSpacing(12)
-        el.addWidget(go, 0, Qt.AlignmentFlag.AlignCenter)
-        el.addStretch(2)
 
         # Encabezado: la operación y los controles del paso a paso.
         self.expression = QLabel()

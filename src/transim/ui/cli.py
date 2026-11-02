@@ -258,8 +258,15 @@ def gui(
     Por defecto abre en modo exposición: oscuro y sin lo que no hace falta para mostrar
     la FPU (ADR-0019).
     """
-    from transim.ui.gui.app import main as gui_main
-
+    try:
+        from transim.ui.gui.app import main as gui_main
+    except ImportError:
+        typer.echo(
+            "Falta PySide6, la biblioteca de la interfaz gráfica. Instálela una vez con "
+            "«make install-gui» y abra con «make gui», o use «uv run --extra gui transim gui».",
+            err=True,
+        )
+        raise typer.Exit(1) from None
     raise typer.Exit(gui_main(full=completo))
 
 
