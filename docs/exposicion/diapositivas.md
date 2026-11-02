@@ -54,6 +54,15 @@ lang: es
 6. Redondear al par (G, R, S) y empaquetar; elegir entre resultado numérico y
    especial (NaN, ±∞).
 
+## Recorrido paso a paso
+
+![1.5 + 2.25 en la pestaña Recorrido, paso 5: X = 01.001₂ + Y = 00.110₂ = 01.111₂; las etapas que faltan, en gris.](img/recorrido_suma.png)
+
+- Cada etapa del hardware con la cuenta hecha con los bits de la simulación:
+  d = 128 − 127 = 1, 1.10₂ >> 1 = 0.11₂, 01.001₂ + 00.110₂ = 01.111₂.
+- También la multiplicación (arreglo de AND y sumadores) y la división (divisor no
+  restaurador, un bit del cociente por fila).
+
 ## Demostración
 
 ```
@@ -69,18 +78,49 @@ $ transim calc 1.5 + 2.25 --trace
 
 ## Del chip al transistor
 
-![La unidad de suma (13 974 transistores) en silicio: cada bloque del datapath, en filas de celdas estándar.](img/chip_silicio.png)
+![Plano de la unidad de suma (13 974 transistores): cada bloque ocupa un área proporcional a sus transistores, con el color de su etapa.](img/plano_chip.png)
 
-## Celdas estándar en silicio
+- Plano ilustrativo (ADR-0017): el área sale del número de transistores, no de un
+  layout con reglas de diseño. Doble clic en un bloque para entrar.
 
-![Difusión p+ (ocre) en el pozo n, difusión n+ (verde), polisilicio (rojo), metal 1 y 2; en verde claro, los canales que conducen.](img/celdas_silicio.png)
+## Dentro de un bloque: el acarreo
 
-- El layout se genera del netlist y se verifica contra él: sin cortocircuitos ni nodos
-  abiertos (ADR-0015). Es ilustrativo: no sigue las reglas de un proceso real.
+![Sumador de mantisas en su rejilla de bits (columna = bit, fila = nivel): la escalera es la cadena de acarreo; en amarillo, las celdas que cambian en ese instante.](img/rejilla_acarreo.png)
+
+- La operación se reproduce con **un retardo por celda** y se comprueba nodo por nodo
+  contra el resultado del motor (ADR-0018).
+- 1.5 + 2.25 partiendo de 0 + 0: el sumador de mantisas termina en el retardo 24 y la
+  unidad en el 54; el peor caso (camino crítico) es 176.
+
+## De la celda a las compuertas
+
+![XOR2 con a = 1, b = 0: dos inversores y una compuerta AND-OR invertida (AOI).](img/xor2_compuertas.png)
+
+- Cada etapa CMOS se dibuja como la compuerta que implementa, deducida de su red
+  pull-down: serie = AND, paralelo = OR, salida negada (ADR-0016).
+- Se comprueba contra la simulación en todas las combinaciones de entrada.
+
+## El sumador completo por dentro
+
+![FA con a = 1, b = 0, cin = 1: dos compuertas complejas y dos inversores dan s = 0 y cout = 1.](img/fa_compuertas.png)
+
+- Es un **sumador espejo** de 28 transistores, no un XOR más un AND: la vista muestra el
+  circuito que se simula.
 
 ## Esquema CMOS de una celda
 
-![NAND2 con a = 1, b = 0: pMOS en paralelo arriba, nMOS en serie abajo; en verde, el camino que fija la salida.](img/nand2_esquema.png)
+![NAND2 con a = 1, b = 0: pMOS en paralelo en la red pull-up (fondo rojizo), nMOS en serie en la pull-down (fondo azulado). Canal continuo: conduce.](img/nand2_esquema.png)
+
+- La red pull-up lleva la salida a 1 y la pull-down a 0; nunca conducen las dos a la
+  vez.
+
+## La celda y su silicio
+
+![La misma NAND2 junto a su layout: difusión p+ en el pozo n, difusión n+, polisilicio, metal 1 y metal 2; en verde, los canales que conducen.](img/nand2_silicio.png)
+
+- El layout se genera del netlist y se verifica contra él: sin cortocircuitos ni nodos
+  abiertos (ADR-0015). Al pasar el ratón por un transistor se resalta en los dos
+  dibujos.
 
 ## El transistor por dentro
 
@@ -104,7 +144,7 @@ $ transim calc 1.5 + 2.25 --trace
 - Cada bloque se compara con un **modelo de referencia**, y este con NumPy.
 - Cuatro operaciones × dos formatos: todos los pares borde y 10 000 aleatorios.
 - **0 discrepancias** bit a bit, incluidos los cinco flags.
-- 476 pruebas automáticas rápidas en la integración continua.
+- 595 pruebas automáticas rápidas en la integración continua.
 
 ## Transistores por unidad
 
