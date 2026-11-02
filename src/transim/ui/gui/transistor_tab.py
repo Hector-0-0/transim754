@@ -55,6 +55,7 @@ from transim.ui.gui import theme as th
 from transim.ui.gui.canvas import (
     LAYER_COLOR,
     LAYER_NAMES,
+    TOGGLE_LAYERS,
     CanvasView,
     CellItem,
     CircuitScene,
@@ -65,6 +66,7 @@ from transim.ui.gui.canvas import (
 from transim.ui.gui.circuit import Binding, active_path, bind_cell, bind_instance
 from transim.ui.gui.cross_section import CrossSection, Device, explain
 from transim.ui.gui.model import Calculation, instance_toggles
+from transim.ui.gui.steps import Step, cell_steps, input_ids
 from transim.ui.gui.widgets import Segmented, card, hint, thousands
 
 BLOCK_LIMIT = 2500
@@ -398,6 +400,18 @@ class Inspector(QFrame):
 
 
 # ------------------------------------------------------------------ pestaña
+LAYER_SHORT = {
+    "nwell": "Pozo n",
+    "pdiff": "Difusión p",
+    "ndiff": "Difusión n",
+    "poly": "Polisilicio",
+    "contact": "Contactos",
+    "metal1": "Metal 1",
+    "via": "Vías",
+    "metal2": "Metal 2",
+}
+
+
 class TransistorTab(QWidget):
     """Microscopio: de los bloques de una unidad hasta cada transistor."""
 
@@ -498,6 +512,51 @@ class TransistorTab(QWidget):
         for box in (self.paths, self.toggles, self.heat, self.by_value):
             options.addWidget(box)
         options.addStretch(1)
+        # Capas del silicio: solo se ven en esa vista; ocultar una deja ver las demás.
+        self.layer_row = QWidget()
+        lr = QHBoxLayout(self.layer_row)
+        lr.setContentsMargins(0, 0, 0, 0)
+        lr.setSpacing(12)
+        caption = QLabel("Capas:")
+        caption.setObjectName("hint")
+        lr.addWidget(caption)
+        self.layer_boxes: dict[str, QCheckBox] = {}
+        for layer in TOGGLE_LAYERS:
+            box = QCheckBox(LAYER_SHORT[layer])
+            box.setChecked(True)
+            box.setToolTip(f"Mostrar u ocultar: {LAYER_NAMES[layer]}")
+            box.setCursor(Qt.CursorShape.PointingHandCursor)
+            box.toggled.connect(lambda on, k=layer: self._layer_toggled(k, on))
+            self.layer_boxes[layer] = box
+            lr.addWidget(box)
+        lr.addStretch(1)
+        self.layer_row.setVisible(False)
+        # Paso a paso del esquema: una etapa a la vez, en orden de dependencia.
+        self.step_row = QWidget()
+        sr = QHBoxLayout(self.step_row)
+        sr.setContentsMargins(0, 0, 0, 0)
+        sr.setSpacing(6)
+        step_caption = QLabel("Paso a paso:")
+        step_caption.setObjectName("hint")
+        sr.addWidget(step_caption)
+        self.step_back = self._tool("◀ Anterior", "Etapa anterior", lambda: self._step_move(-1))
+        self.step_next = self._tool(
+            "Siguiente ▶",
+            "Siguiente etapa, en el orden en que sus entradas ya tienen valor",
+            lambda: self._step_move(1),
+        )
+        self.step_all = self._tool(
+            "Ver todo", "Quitar el filtro y ver todas las etapas", self._step_reset
+        )
+        self.step_text = QLabel()
+        self.step_text.setObjectName("hint")
+        self.step_text.setWordWrap(True)
+        for w in (self.step_back, self.step_next, self.step_all):
+            sr.addWidget(w)
+        sr.addWidget(self.step_text, 1)
+        self.step_row.setVisible(False)
+        self.steps: list[Step] = []
+        self.step_pos = -1
         self.info = QLabel()
         self.info.setWordWrap(True)
         self.info.setObjectName("hint")
@@ -511,6 +570,8 @@ class TransistorTab(QWidget):
         cl.addWidget(self.breadcrumb)
         cl.addLayout(bar)
         cl.addLayout(options)
+        cl.addWidget(self.layer_row)
+        cl.addWidget(self.step_row)
         cl.addWidget(self.info)
         frame = QFrame()
         frame.setObjectName("card")
@@ -615,6 +676,64 @@ class TransistorTab(QWidget):
         self.toggles.setEnabled(op and not self.silicon)
         self.heat.setEnabled(op)
         self.by_value.setEnabled(self.silicon)
+        self.layer_row.setVisible(self.silicon)
+
+    def _steps_refresh(self) -> None:
+        """Prepara los pasos de la celda dibujada (solo si es un esquema de una celda)."""
+        cells = self.scene.cells
+        single = len(cells) == 1 and isinstance(cells[0], SchematicItem) and not self.silicon
+        self.steps = cell_steps(cells[0].binding.netlist) if single else []
+        if self.step_pos >= len(self.steps):
+            self.step_pos = -1
+        self._apply_step()
+
+    def _apply_step(self) -> None:
+        """Resalta las etapas hasta el paso elegido y atenúa el resto."""
+        n = len(self.steps)
+        shown = bool(n) and not self.silicon
+        self.step_row.setVisible(shown)
+        if not shown:
+            self.scene.step_filter = None
+            return
+        cell = self.scene.cells[0]
+        if self.step_pos < 0:
+            self.scene.step_filter = None
+            self.step_text.setText(
+                f"{n} etapas en orden de dependencia. Use Siguiente para verlas de una en una."
+            )
+        else:
+            done = self.steps[: self.step_pos + 1]
+            transistors = frozenset().union(*(st.transistors for st in done))
+            nodes = set(input_ids(cell.binding.netlist)) | {0, 1}
+            for st in done:
+                nodes.update(st.outputs)
+            self.scene.step_filter = (transistors, frozenset(nodes))
+            step = self.steps[self.step_pos]
+            value = cell.value_fn()(step.outputs[0])
+            self.step_text.setText(
+                f"Etapa {self.step_pos + 1} de {n}: {step.label} = {logic_text(value)}. "
+                "Valores de la simulación; el orden sigue la dependencia entre etapas."
+            )
+        self.step_back.setEnabled(self.step_pos >= 0)
+        self.step_next.setEnabled(self.step_pos < n - 1)
+        self.step_all.setEnabled(self.step_pos >= 0)
+        self.scene.refresh()
+
+    def _step_move(self, delta: int) -> None:
+        self.step_pos = max(-1, min(len(self.steps) - 1, self.step_pos + delta))
+        self._apply_step()
+
+    def _step_reset(self) -> None:
+        self.step_pos = -1
+        self._apply_step()
+
+    def _layer_toggled(self, layer: str, shown: bool) -> None:
+        """Muestra u oculta una capa del silicio y repinta."""
+        if shown:
+            self.scene.visible_layers.add(layer)
+        else:
+            self.scene.visible_layers.discard(layer)
+        self.scene.refresh()
 
     def _apply_heat(self) -> None:
         if not (self.heat.isChecked() and self.heat.isEnabled() and self.unit is not None):
@@ -689,6 +808,8 @@ class TransistorTab(QWidget):
         self._apply_heat()
         self._legend()
         self._update_controls()
+        self.step_pos = -1
+        self._steps_refresh()
         if keep_view:
             self.view.resetTransform()
             self.view.scale(zoom, zoom)

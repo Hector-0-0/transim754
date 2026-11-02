@@ -75,17 +75,24 @@ PIN_FONT = _font(6.5, bold=True)
 
 # Colores de las capas del layout (convención de los editores de layout: difusión p
 # ocre, difusión n verde, polisilicio rojo, metal 1 azul, metal 2 violeta).
+# Las capas usan tonos que no son los de los valores lógicos (rojo = 1, azul = 0, verde =
+# conduce): así un mismo color no significa dos cosas en el esquema y en el silicio.
+DIM_OPACITY = 0.16
+"""Opacidad de lo que no forma parte del paso mostrado en el esquema."""
+
 LAYER_COLOR = {
     "nwell": "#a39338",
     "pdiff": "#c8913a",
     "ndiff": "#3c9c50",
-    "poly": "#d8433c",
-    "metal1": "#3d7fe0",
-    "metal2": "#b24fd2",
+    "poly": "#a35fc0",
+    "metal1": "#8c97a8",
+    "metal2": "#0e9aa7",
     "contact": "#121212",
     "via": "#f1f1f1",
 }
-LAYER_ALPHA = {"pdiff": 215, "ndiff": 215, "poly": 230, "metal1": 125, "metal2": 115}
+LAYER_ALPHA = {"pdiff": 215, "ndiff": 215, "poly": 230, "metal1": 255, "metal2": 255}
+TOGGLE_LAYERS = ("nwell", "pdiff", "ndiff", "poly", "contact", "metal1", "via", "metal2")
+"""Capas que el usuario puede ocultar en la vista de silicio (el canal siempre se ve)."""
 LAYER_NAMES = {
     "nwell": "pozo n (n-well)",
     "pdiff": "difusión p+ (pMOS)",
@@ -266,7 +273,13 @@ class SchematicItem(CellItem):
         hover_node = self.board.hover_node
         local_hover = self.local_node(hover_node) if hover_node is not None else None
         toggled = self.board.toggled_nodes if self.board.show_toggles else set()
+        focus = self.board.step_filter
+
+        def dim(on: bool) -> None:
+            painter.setOpacity(1.0 if focus is None or on else DIM_OPACITY)
+
         for s in self.geo.segs:
+            dim(focus is None or s.node in focus[1] or s.node in (0, 1))
             if local_hover is not None and s.node == local_hover:
                 painter.setPen(pen(alpha(t.halo, 170), 9))
                 painter.drawLine(QPointF(s.x1, s.y1), QPointF(s.x2, s.y2))
@@ -277,10 +290,13 @@ class SchematicItem(CellItem):
             painter.drawLine(QPointF(s.x1, s.y1), QPointF(s.x2, s.y2))
         painter.setPen(Qt.PenStyle.NoPen)
         for j in self.geo.joints:
+            dim(focus is None or j.node in focus[1])
             painter.setBrush(QBrush(t.logic(value(j.node))))
             painter.drawEllipse(QPointF(j.x, j.y), 3.4, 3.4)
         for d in self.geo.devices:
+            dim(focus is None or d.index in focus[0])
             self._paint_device(painter, t, d, state[d.index], value)
+        painter.setOpacity(1.0)
         if lod > 0.42:
             self._paint_texts(painter, t, value, local_hover)
         else:
@@ -572,17 +588,20 @@ class SiliconItem(CellItem):
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(QColor(silicon_background(t))))
         painter.drawRect(rect)
-        painter.setBrush(QBrush(alpha(LAYER_COLOR["nwell"], 40)))
-        painter.drawRect(well)
-        if lod > 0.25:
-            painter.setPen(pen(alpha(LAYER_COLOR["nwell"], 170), 1.0, Qt.PenStyle.DashLine))
-            painter.setBrush(Qt.BrushStyle.NoBrush)
+        shown = self.board.visible_layers
+        if "nwell" in shown:
+            painter.setBrush(QBrush(alpha(LAYER_COLOR["nwell"], 40)))
             painter.drawRect(well)
+            if lod > 0.25:
+                painter.setPen(pen(alpha(LAYER_COLOR["nwell"], 170), 1.0, Qt.PenStyle.DashLine))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRect(well)
         value = self.value_fn()
         by_value = self.board.color_by_value
         detail = lod > 0.3
         for layer in ("pdiff", "ndiff", "poly"):
-            self._fill(painter, t, layer, value, by_value, detail)
+            if layer in shown:
+                self._fill(painter, t, layer, value, by_value, detail)
         # Canales: se iluminan cuando el transistor conduce.
         for s in self._by_layer["channel"]:
             assert s.transistor is not None
@@ -603,12 +622,14 @@ class SiliconItem(CellItem):
                 painter.setPen(Qt.PenStyle.NoPen)
                 painter.setBrush(QBrush(alpha("#3a2a2a", 200)))
                 painter.drawRect(r)
-        if detail:
+        if detail and "contact" in shown:
             self._contacts(painter, "contact")
-        self._fill(painter, t, "metal1", value, by_value, detail)
-        if detail:
+        if "metal1" in shown:
+            self._fill(painter, t, "metal1", value, by_value, detail)
+        if detail and "via" in shown:
             self._contacts(painter, "via")
-        self._fill(painter, t, "metal2", value, by_value, detail)
+        if "metal2" in shown:
+            self._fill(painter, t, "metal2", value, by_value, detail)
         self._paint_marks(painter, t)
         if lod > 0.55:
             self._paint_pins(painter, t, value)
@@ -652,19 +673,12 @@ class SiliconItem(CellItem):
         a = LAYER_ALPHA.get(layer, 200)
         hover = self.board.hover_node
         local_hover = self.local_node(hover) if hover is not None else None
-        pattern = {
-            "metal1": Qt.BrushStyle.BDiagPattern,
-            "metal2": Qt.BrushStyle.FDiagPattern,
-        }.get(layer)
         for s in self._by_layer[layer]:
             r = self._r(s)
             color = t.logic(value(s.node)) if by_value and s.node is not None else base
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(alpha(color, a)))
             painter.drawRect(r)
-            if detail and pattern is not None:
-                painter.setBrush(QBrush(alpha(color.darker(160), 150), pattern))
-                painter.drawRect(r)
             if detail:
                 painter.setPen(pen(color.darker(140) if not by_value else color, 0.8))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -833,6 +847,10 @@ class CircuitScene(QGraphicsScene):
         self.show_heat = False
         self.show_toggles = False
         self.color_by_value = False
+        self.visible_layers: set[str] = set(TOGGLE_LAYERS)
+        self.step_filter: tuple[frozenset[int], frozenset[int]] | None = None
+        """Paso a paso del esquema: (transistores, nodos) que se resaltan; el resto se atenúa."""
+        """Capas del silicio que se dibujan (se eligen con las casillas de la pestaña)."""
         self.toggled_nodes: set[int] = set()
         self.flows: dict[CellItem, set[int]] = {}
         self.flow_phase = 0.0

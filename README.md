@@ -19,8 +19,9 @@ Universidad Nacional de Ingeniería, FIIS, 2026-II.
 - Una CPU mínima con ISA propia (T754) ejecuta programas ensamblados desde texto.
 - Los resultados se verifican bit a bit contra numpy; se miden transistores,
   conmutaciones, profundidad lógica y ciclos de reloj estimados (ADR-0014).
-- La GUI muestra la FPU por fuera (operandos, bits, flags verificados, ciclos) y por
-  dentro: el esquema CMOS de cada celda y una vista de silicio que va del plano del chip
+- La GUI muestra la FPU por fuera (operandos, bits, flags verificados, ciclos), el
+  recorrido paso a paso de una suma o resta por las etapas del hardware con sus valores,
+  y por dentro: el esquema CMOS de cada celda y una vista de silicio que va del plano del chip
   a las filas de celdas estándar y a cada transistor, con su corte transversal
   (ADR-0015).
 
