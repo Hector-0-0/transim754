@@ -14,11 +14,15 @@ from dataclasses import dataclass
 from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import (
+    QAbstractSpinBox,
+    QApplication,
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QSizePolicy,
+    QTabBar,
     QToolTip,
     QVBoxLayout,
     QWidget,
@@ -416,8 +420,8 @@ class BitField(QWidget):
         p.setFont(_font(8.0, True))
         heads = [
             ("sign", f.width - 1, f.width - 1, "s"),
-            ("exponent", f.width - 2, f.frac_bits, f"exponente · {f.exp_bits} bits"),
-            ("fraction", f.frac_bits - 1, 0, f"fracción · {f.frac_bits} bits"),
+            ("exponent", f.width - 2, f.frac_bits, f"exponente ({f.exp_bits} bits)"),
+            ("fraction", f.frac_bits - 1, 0, f"fracción ({f.frac_bits} bits)"),
         ]
         for field, hi, lo, name in heads:
             x0, x1 = self._x(hi), self._x(lo) + cell
@@ -506,7 +510,7 @@ class BitField(QWidget):
             "fraction": f"vale 2^−{self.fmt.frac_bits - k} en el significando",
         }[field]
         value = "—" if row.bits is None else str(row.bits >> bit & 1)
-        tip = f"<b>{row.name} · bit {bit}</b> = {value}<br>{names[field]}: {weight}"
+        tip = f"<b>{row.name}, bit {bit}</b> = {value}<br>{names[field]}: {weight}"
         if row.clickable:
             tip += "<br><i>clic para invertirlo y recalcular</i>"
         QToolTip.showText(event.globalPosition().toPoint(), tip, self)
@@ -628,7 +632,7 @@ class CycleStrip(QWidget):
         p.drawText(
             QRectF(0, bar.bottom() + 20, self.width(), 14),
             Qt.AlignmentFlag.AlignCenter,
-            "celdas del camino crítico (una unidad de retardo cada una)",
+            "celdas del camino crítico",
         )
         p.end()
 
@@ -726,7 +730,7 @@ class BarList(QWidget):
             p.drawText(
                 QRectF(lw + max(w, 2) + 8.0, y, value_w + bar_w - w, self.ROW - 4),
                 Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-                f"{thousands(b.value)}  ·  {100 * b.value / total:.1f} %",
+                f"{thousands(b.value)}  ({100 * b.value / total:.1f} %)",
             )
         p.end()
 
@@ -773,6 +777,78 @@ class _ClickFilter(QObject):
         return False
 
 
+EMPTY_WIDTH = 460
+"""Ancho del texto de un estado vacío: con un ancho fijo, Qt calcula bien su alto."""
+
+
+def empty_state(title: str, text: str, button: str, on_click: object) -> QWidget:
+    """Pantalla de «todavía no hay nada»: un título, una línea y un botón, centrados.
+
+    El texto se agrega al layout sin alineación y con ancho fijo: con alineación, Qt le
+    da la altura de una sola línea y el texto ajustado sale recortado.
+    """
+    box = QWidget()
+    box.setFixedWidth(EMPTY_WIDTH)
+    inner = QVBoxLayout(box)
+    inner.setContentsMargins(0, 0, 0, 0)
+    inner.setSpacing(10)
+    head = QLabel(title)
+    head.setObjectName("bigResult")
+    head.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+    body = QLabel(text)
+    body.setObjectName("muted")
+    body.setWordWrap(True)
+    body.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+    go = QPushButton(button)
+    go.setObjectName("primary")
+    go.setCursor(Qt.CursorShape.PointingHandCursor)
+    go.clicked.connect(on_click)
+    inner.addWidget(head)
+    inner.addWidget(body)
+    inner.addSpacing(6)
+    row = QHBoxLayout()
+    row.addStretch(1)
+    row.addWidget(go)
+    row.addStretch(1)
+    inner.addLayout(row)
+    page = QWidget()
+    outer = QVBoxLayout(page)
+    outer.addStretch(1)
+    middle = QHBoxLayout()
+    middle.addStretch(1)
+    middle.addWidget(box)
+    middle.addStretch(1)
+    outer.addLayout(middle)
+    outer.addStretch(2)
+    return page
+
+
+class WheelGuard(QObject):
+    """La rueda del ratón no cambia de pestaña ni cambia el valor de una lista o de un
+    cuadro numérico que no se eligió antes con un clic. Así, al desplazarse por la
+    ventana nada cambia sin querer."""
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:  # noqa: N802 - API de Qt
+        if event.type() != QEvent.Type.Wheel:
+            return False
+        if isinstance(obj, QTabBar):
+            return True
+        return isinstance(obj, QComboBox | QAbstractSpinBox) and not obj.hasFocus()
+
+
+_wheel_guard: WheelGuard | None = None
+
+
+def guard_wheel() -> None:
+    """Instala :class:`WheelGuard` en la aplicación (una sola vez)."""
+    global _wheel_guard
+    app = QApplication.instance()
+    if app is None or _wheel_guard is not None:
+        return
+    _wheel_guard = WheelGuard(app)
+    app.installEventFilter(_wheel_guard)
+
+
 __all__ = [
     "FLAG_CHIPS",
     "Bar",
@@ -785,8 +861,11 @@ __all__ = [
     "Segment",
     "Segmented",
     "StatTile",
+    "WheelGuard",
     "card",
+    "empty_state",
     "flag_keys",
+    "guard_wheel",
     "hint",
     "stage_color",
     "thousands",

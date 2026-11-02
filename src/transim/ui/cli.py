@@ -244,11 +244,30 @@ def metrics(
 
 
 @app.command()
-def gui() -> None:
-    """Abre la interfaz gráfica (requiere ``make install-gui``)."""
-    from transim.ui.gui.app import main as gui_main
+def gui(
+    completo: Annotated[
+        bool,
+        typer.Option(
+            "--completo",
+            help="Muestra todo: menús, atajos de teclado, pestaña Programa e historial.",
+        ),
+    ] = False,
+) -> None:
+    """Abre la interfaz gráfica (requiere ``make install-gui``).
 
-    raise typer.Exit(gui_main())
+    Por defecto abre en modo exposición: oscuro y sin lo que no hace falta para mostrar
+    la FPU (ADR-0019).
+    """
+    try:
+        from transim.ui.gui.app import main as gui_main
+    except ImportError:
+        typer.echo(
+            "Falta PySide6, la biblioteca de la interfaz gráfica. Instálela una vez con "
+            "«make install-gui» y abra con «make gui», o use «uv run --extra gui transim gui».",
+            err=True,
+        )
+        raise typer.Exit(1) from None
+    raise typer.Exit(gui_main(full=completo))
 
 
 if __name__ == "__main__":

@@ -331,8 +331,8 @@ class _Builder:
         self.out.texts.append(Text("VDD", x, y - 9, "rail", vdd))
         self.out.texts.append(Text("GND", x, y + h + 10, "rail", gnd))
         caption_x = x + self.w("VDD") + 10
-        self.out.texts.append(Text("red pull-up · pMOS", caption_x, y - 9, "band"))
-        self.out.texts.append(Text("red pull-down · nMOS", caption_x, y + h + 10, "band"))
+        self.out.texts.append(Text("red pull-up (pMOS)", caption_x, y - 9, "band"))
+        self.out.texts.append(Text("red pull-down (nMOS)", caption_x, y + h + 10, "band"))
         self.seg(spine, y, spine, y + RAIL_GAP, vdd)
         self.out.joints.append(Joint(spine, y, vdd))
         self.emit(e.pull_up, spine, y + RAIL_GAP)

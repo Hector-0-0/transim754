@@ -273,9 +273,20 @@ def cycle_groups(netlist: Netlist, period: int) -> tuple[int, list[tuple[str, st
             j += 1
         first, last = cycles[i], cycles[j]
         which = str(first.index) if i == j else f"{first.index}–{last.index}"
-        rows.append((which, f"{first.first_cell}–{last.last_cell}", " · ".join(first.stages)))
+        rows.append((which, f"{first.first_cell}–{last.last_cell}", ", ".join(first.stages)))
         i = j + 1
     return sum(st.cells for st in stages), rows
+
+
+UNIT_TITLES = {"FADDSUB": "Suma y resta", "FMUL": "Multiplicación", "FDIV": "División"}
+"""Nombre para mostrar de cada unidad (por el prefijo de su netlist)."""
+
+
+def unit_title(name: str) -> str:
+    """``FADDSUB_binary32`` → ``Suma y resta en binary32`` (otro nombre queda igual)."""
+    kind, _, fmt = name.partition("_")
+    title = UNIT_TITLES.get(kind)
+    return f"{title} en {fmt}" if title and fmt else name
 
 
 def cycles_report(netlist: Netlist, period: int, stage_toggles: dict[str, int]) -> str:
@@ -286,7 +297,7 @@ def cycles_report(netlist: Netlist, period: int, stage_toggles: dict[str, int]) 
     total, groups = cycle_groups(netlist, period)
     n_cycles = len(schedule(critical_stages(netlist), period))
     lines = [
-        f"{netlist.name} · camino crítico: {total} celdas",
+        f"{netlist.name}: camino crítico de {total} celdas",
         f"Periodo de reloj: {period} celdas → {n_cycles} ciclos (estimado, ADR-0014)",
         "",
     ]
@@ -375,6 +386,7 @@ def instruction_lines(source: str, words: list[int]) -> dict[int, int]:
 __all__ = [
     "EXAMPLES",
     "OPS",
+    "UNIT_TITLES",
     "Calculation",
     "Example",
     "calculate",
@@ -388,5 +400,6 @@ __all__ = [
     "is_built",
     "parse_operand",
     "unit_for",
+    "unit_title",
     "value_text",
 ]

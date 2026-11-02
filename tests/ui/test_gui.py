@@ -33,7 +33,7 @@ def esperar(app: object, condicion: Callable[[], bool], segundos: float = 20.0) 
 def ventana(qapp: object) -> Iterator[object]:
     from transim.ui.gui.app import create_window
 
-    v = create_window()
+    v = create_window(full=True)  # todo a la vista; el modo exposición tiene sus pruebas
     v.resize(1440, 900)
     v.show()
     qapp.processEvents()  # type: ignore[attr-defined]
@@ -327,7 +327,7 @@ def test_buscador_y_mapa_de_actividad(ventana: object, qapp: object) -> None:
     assert textos
     assert all("gor1" in t for t in textos)
     tr.hierarchy.search.clear()
-    assert tr.tree.topLevelItem(0).text(0) == tr.unit.netlist.name
+    assert tr.tree.topLevelItem(0).text(0) == "Suma y resta en binary32"
     tr.reveal("align")
     tr.heat.setChecked(True)
     assert tr.scene.show_heat
@@ -398,7 +398,7 @@ def test_consola_de_ciclos() -> None:
     from transim.ui.gui.app import cycles_report
 
     texto = cycles_report(fp_add_sub(BINARY32), 39, {"round": 10, "align": 3})
-    assert "camino crítico: 176 celdas" in texto
+    assert "camino crítico de 176 celdas" in texto
     assert "5 ciclos" in texto
     assert "Ciclo 1" in texto
     assert "redondear y empaquetar" in texto
@@ -443,11 +443,11 @@ def test_recuerda_tamano_pestana_y_tema(
     original = MainWindow._settings
     MainWindow._settings = lambda self: QSettings(archivo, QSettings.Format.IniFormat)  # type: ignore[method-assign]
     try:
-        v = MainWindow(persist=True)
+        v = MainWindow(persist=True, full=True)
         v.tabs.setCurrentIndex(3)
         v.set_theme("oscuro")
         borrar(v)
-        w = MainWindow(persist=True)
+        w = MainWindow(persist=True, full=True)
         assert w.tabs.currentIndex() == 3
         assert w.theme_choice == "oscuro"
         w.set_theme("claro")
@@ -645,8 +645,8 @@ def test_recorrido_conserva_el_paso_al_recalcular(ventana: object, qapp: object)
     op.op.set_value("mul")
     calcular(qapp, ventana)
     assert rec.index == 0  # otra unidad: vuelve al inicio
-    assert "FMUL" in rec.subtitle.text()
-    assert "explicado paso a paso" in rec.subtitle.text()
+    assert "Multiplicación en binary32" in rec.subtitle.text()
+    assert "6 pasos" in rec.subtitle.text()
 
 
 # ---------------------------------------------------------------- compuertas
@@ -800,7 +800,7 @@ def test_rejilla_de_un_bloque_y_propagacion(ventana: object, qapp: object) -> No
     assert ultimo > 0
     tr.set_time(ultimo)
     assert tr.scene.flash_cells & paths
-    assert f"t = {ultimo}" in tr.time_text.text()
+    assert f"Retardo {ultimo} de" in tr.time_text.text()
     # Reproducir avanza solo hasta el final.
     tr.toggle_time()
     for _ in range(r.length + 1):

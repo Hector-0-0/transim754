@@ -890,7 +890,7 @@ class FrameItem(QGraphicsItem):
         painter.scale(1 / lod, 1 / lod)
         painter.setFont(_font(12.0 if self.die else 9.5, bold=True))
         fm = QFontMetricsF(painter.font())
-        text = f"{self.title}  ·  {self.subtitle}" if self.subtitle else self.title
+        text = f"{self.title}: {self.subtitle}" if self.subtitle else self.title
         text = fm.elidedText(text, Qt.TextElideMode.ElideRight, on_screen - 2 * inset * lod - 12)
         w = fm.horizontalAdvance(text) + 12
         painter.setPen(Qt.PenStyle.NoPen)
@@ -1126,7 +1126,9 @@ class GridFrameItem(QGraphicsItem):
             )
         painter.setFont(TITLE_FONT)
         painter.setPen(pen(t.ink, 1))
-        painter.drawText(QPointF(16, 24), "Rejilla de bits: columna = bit · fila = nivel lógico")
+        painter.drawText(
+            QPointF(16, 24), "Rejilla de bits: cada columna es un bit y cada fila, un nivel lógico"
+        )
 
 
 # ------------------------------------------------------------------- escena

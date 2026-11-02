@@ -37,6 +37,9 @@ make demo        # transim calc 1.5 + 2.25 --format binary32 --trace
 > y binary16; `transim calc`, `asm`, `run`, `metrics` y `gui` funcionan.
 
 Requisitos: Python 3.12 y `make`. La GUI necesita además `make install-gui`.
+`make gui` la abre en modo exposición: oscuro, sin menús ni atajos, con las pestañas
+Operación, Recorrido y Transistores. Con uv: `uv run --extra gui transim gui`. `transim gui --completo` muestra además los menús,
+la pestaña Programa y el historial (ADR-0019).
 
 ## Arquitectura
 
@@ -62,7 +65,7 @@ flowchart BT
 | [ISA T754](docs/04_isa_t754.md) | instrucciones, codificación y ensamblador |
 | [Métricas](docs/05_metricas.md) | transistores, actividad, camino crítico y ciclos estimados |
 | [Política de IA](docs/06_politica_ia.md) | uso de IA en el software y en el desarrollo |
-| [ADR](docs/adr/README.md) | las 18 decisiones de diseño |
+| [ADR](docs/adr/README.md) | las 19 decisiones de diseño |
 | [Glosario](docs/GLOSARIO.md) | términos técnicos |
 | [Investigación](docs/investigacion/transistores_en_cpus.md) | transistores en las CPU |
 | [Diapositivas de la exposición](docs/exposicion/diapositivas.md) | material de la presentación |

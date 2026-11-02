@@ -6,8 +6,13 @@ La interfaz solo muestra: los resultados los calculan las unidades de transistor
 (``FPAddSub``, ``FPMul``, ``FPDiv``) y la máquina T754. La conversión de texto a bits
 usa ``reference.fpu.from_decimal``, igual que el CLI.
 
-Tres pestañas: **Operación** (la FPU vista desde afuera), **Transistores** (por dentro,
-en esquema y en silicio) y **Programa** (la FPU dentro de una CPU).
+Pestañas: **Operación** (la FPU vista desde afuera), **Recorrido** (la operación paso a
+paso), **Transistores** (por dentro, en compuertas, esquema y silicio) y **Programa** (la
+FPU dentro de una CPU).
+
+Modo exposición (ADR-0019), el de ``transim gui``: siempre oscuro, sin menús, sin atajos
+de teclado, sin la pestaña Programa, sin Ejemplos ni historial y sin el panel de detalle de
+Transistores. Nada se borra: ``transim gui --completo`` muestra todo.
 """
 
 from __future__ import annotations
@@ -65,6 +70,7 @@ from transim.ui.gui.operation_tab import OperationTab
 from transim.ui.gui.program_tab import ProgramTab
 from transim.ui.gui.transistor_tab import BLOCK_LIMIT, LEAF_CELLS, TransistorTab
 from transim.ui.gui.walkthrough_tab import WalkthroughTab
+from transim.ui.gui.widgets import guard_wheel
 
 TITLE = "TranSim754 — procesador IEEE 754 de transistores simulados"
 VERSION = "0.2.0"
@@ -140,15 +146,15 @@ bajo el ratón: la capa de inversión aparece cuando conduce.</li>
 <h3>Ratón y teclado en el dibujo</h3>
 <table cellspacing="6">
 <tr><td>Arrastrar</td><td>mover la vista</td></tr>
-<tr><td>Rueda · Ctrl+ / Ctrl−</td><td>acercar y alejar (hacia el puntero)</td></tr>
+<tr><td>Rueda, Ctrl+ o Ctrl−</td><td>acercar y alejar (hacia el puntero)</td></tr>
 <tr><td>Pasar el ratón</td><td>resaltar un nodo en todas las celdas a las que llega</td></tr>
-<tr><td>Clic</td><td>fijar un transistor · cambiar una entrada de la celda</td></tr>
-<tr><td>Doble clic</td><td>entrar en una celda o bloque · acercarse a un transistor ·
+<tr><td>Clic</td><td>fijar un transistor o cambiar una entrada de la celda</td></tr>
+<tr><td>Doble clic</td><td>entrar en una celda o bloque, acercarse a un transistor o,
 en el fondo, ajustar</td></tr>
 <tr><td>Clic derecho</td><td>menú (abrir, subir, cambiar de vista, exportar)</td></tr>
-<tr><td>Esc · Retroceso · Ctrl+0</td><td>soltar la selección · subir un nivel ·
+<tr><td>Esc, Retroceso, Ctrl+0</td><td>soltar la selección, subir un nivel,
 ajustar</td></tr>
-<tr><td>Alt+C · Alt+E · Alt+S</td><td>vista Compuertas · Transistores · Silicio</td></tr>
+<tr><td>Alt+C, Alt+E, Alt+S</td><td>vistas Compuertas, Transistores y Silicio</td></tr>
 <tr><td>Ctrl+F</td><td>buscar una instancia o celda</td></tr>
 </table>
 
@@ -158,8 +164,8 @@ ajustar</td></tr>
 cambian se resaltan.</p>
 
 <h3>Atajos generales</h3>
-<p>Ctrl+1 a Ctrl+4: pestañas · Ctrl+O: abrir programa · Ctrl+E: exportar el dibujo
-· F11: pantalla completa · F1: esta guía.</p>
+<p>Ctrl+1 a Ctrl+4: pestañas. Ctrl+O: abrir programa. Ctrl+E: exportar el dibujo.
+F11: pantalla completa. F1: esta guía.</p>
 """
 
 
@@ -203,7 +209,7 @@ class HelpDialog(QDialog):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Guía rápida · TranSim754")
+        self.setWindowTitle("Guía rápida de TranSim754")
         browser = QTextBrowser()
         browser.setHtml(HELP)
         browser.setOpenExternalLinks(True)
@@ -217,11 +223,18 @@ class HelpDialog(QDialog):
 
 
 class MainWindow(QMainWindow):
-    """Ventana principal con las cuatro pestañas, menús y barra de estado."""
+    """Ventana principal con las cuatro pestañas, menús y barra de estado.
 
-    def __init__(self, *, persist: bool = False) -> None:
+    Con ``full=False`` (modo exposición, ADR-0019) se ocultan los menús, la pestaña
+    Programa y lo que no hace falta para mostrar la FPU, y se desactivan los atajos de
+    teclado; nada se elimina.
+    """
+
+    def __init__(self, *, persist: bool = False, full: bool = False) -> None:
         super().__init__()
         self.persist = persist
+        self.full = full
+        guard_wheel()
         self.setWindowTitle(TITLE)
         self.setWindowIcon(app_icon())
         pool = QThreadPool.globalInstance()
@@ -236,18 +249,11 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.walkthrough, "Recorrido")
         self.tabs.addTab(self.transistors, "Transistores")
         self.tabs.addTab(self.program, "Programa")
-        self.tabs.setTabToolTip(
-            0, "La FPU vista desde afuera: operandos, resultado, bits, ciclos (Ctrl+1)"
-        )
-        self.tabs.setTabToolTip(
-            1, "La última operación paso a paso, etapa por etapa del hardware (Ctrl+2)"
-        )
-        self.tabs.setTabToolTip(
-            2, "La FPU por dentro: esquema y silicio hasta cada transistor (Ctrl+3)"
-        )
-        self.tabs.setTabToolTip(
-            3, "La FPU dentro de una CPU: programas .t754 en la máquina T754 (Ctrl+4)"
-        )
+        self.tabs.setTabToolTip(0, "La FPU vista desde afuera: operandos, resultado y bits")
+        self.tabs.setTabToolTip(1, "La última operación, paso a paso por el hardware")
+        self.tabs.setTabToolTip(2, "La FPU por dentro, hasta cada transistor")
+        self.tabs.setTabToolTip(3, "La FPU dentro de una CPU: programas .t754")
+        self.tabs.setTabVisible(self.tabs.indexOf(self.program), full)
         brand = QLabel(
             "<span style='font-size:15px; font-weight:800'>TranSim754</span>"
             "&nbsp;&nbsp;<span style='color:gray'>FPU IEEE 754 de transistores</span>"
@@ -265,8 +271,15 @@ class MainWindow(QMainWindow):
         self.transistors.go_operation.connect(self._go_operation)
         for tab in (self.operation, self.walkthrough, self.transistors, self.program):
             tab.status.connect(self._status)
-        self.statusBar().addPermanentWidget(QLabel("F1: guía rápida"))
+        if full:
+            self.statusBar().addPermanentWidget(QLabel("F1: guía rápida"))
         self._menus()
+        self.menuBar().setVisible(full)
+        if not full:
+            self.theme_choice = "oscuro"
+            self.theme_actions["oscuro"].setChecked(True)
+        for tab in (self.operation, self.walkthrough, self.transistors):
+            tab.set_presentation(not full)
         hints = QGuiApplication.styleHints()
         if hasattr(hints, "colorSchemeChanged"):
             hints.colorSchemeChanged.connect(self._system_theme_changed)
@@ -316,7 +329,7 @@ class MainWindow(QMainWindow):
 
     def _action(self, menu: object, text: str, keys: str | None, fn: object) -> QAction:
         a = QAction(text, self)
-        if keys:
+        if keys and self.full:
             a.setShortcut(QKeySequence(keys))
         a.triggered.connect(fn)
         menu.addAction(a)  # type: ignore[attr-defined]
@@ -369,8 +382,8 @@ class MainWindow(QMainWindow):
             "<p>Procesador con transistores simulados: una FPU IEEE 754 (FADD, FSUB, FMUL, "
             "FDIV en binary32 y binary16) construida desde transistores nMOS y pMOS en un "
             "simulador de nivel de interruptor, y la máquina T754 que la usa.</p>"
-            "<p>Héctor David Flores Sánchez<br>SI421U · FIIS · Universidad Nacional de "
-            "Ingeniería · 2026-II</p><p>Licencia MIT.</p>",
+            "<p>Héctor David Flores Sánchez<br>SI421U, FIIS, Universidad Nacional de "
+            "Ingeniería, 2026-II</p><p>Licencia MIT.</p>",
         )
 
     # ------------------------------------------------------------------- tema
@@ -401,9 +414,10 @@ class MainWindow(QMainWindow):
         geometry = s.value("geometry")
         if isinstance(geometry, QByteArray):
             self.restoreGeometry(geometry)
-        self.set_theme(str(s.value("theme", "sistema")))
+        if self.full:
+            self.set_theme(str(s.value("theme", "oscuro")))
         tab = str(s.value("tab", 0))
-        if tab.isdigit():
+        if tab.isdigit() and self.tabs.isTabVisible(int(tab)):
             self.tabs.setCurrentIndex(int(tab))
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 - API de Qt
@@ -415,14 +429,15 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
 
-def create_window(*, persist: bool = False) -> MainWindow:
+def create_window(*, persist: bool = False, full: bool = False) -> MainWindow:
     """Construye la ventana principal sin mostrarla.
 
     El título contiene "TranSim754". Separar la construcción de ``main`` permite
     probarla sin bucle de eventos (``QT_QPA_PLATFORM=offscreen``). Con ``persist`` la
-    ventana recuerda su tamaño, la pestaña y el tema entre sesiones.
+    ventana recuerda su tamaño, la pestaña y el tema entre sesiones; con ``full`` muestra
+    todo (menús, atajos, Programa) en vez del modo exposición.
     """
-    return MainWindow(persist=persist)
+    return MainWindow(persist=persist, full=full)
 
 
 def install_spanish(app: QApplication) -> QTranslator | None:
@@ -435,7 +450,7 @@ def install_spanish(app: QApplication) -> QTranslator | None:
     return None
 
 
-def main() -> int:
+def main(*, full: bool = False) -> int:
     """Abre la ventana principal y entra al bucle de eventos; devuelve el código de salida.
 
     Ventana: entrada de dos operandos (decimal o hex) y del formato; operación; vista de
@@ -443,7 +458,7 @@ def main() -> int:
     operación (buses ``dbg_``); ciclos de reloj estimados; conteo de transistores y
     conmutaciones; pestaña de transistores que baja de los bloques de la unidad hasta
     cada nMOS y pMOS con su estado, en esquema y en silicio; pestaña para ejecutar
-    programas ``.t754`` paso a paso.
+    programas ``.t754`` paso a paso. Sin ``full``, en modo exposición (ADR-0019).
     """
     app = QApplication.instance() or QApplication(sys.argv)
     if isinstance(app, QApplication):
@@ -454,8 +469,8 @@ def main() -> int:
         if font.pointSizeF() < 9.5:
             font.setPointSizeF(9.5)
             app.setFont(font)
-        theme.apply(app, theme.DARK if theme.system_prefers_dark() else theme.LIGHT)
-    window = create_window(persist=True)
+        theme.apply(app, theme.DARK)
+    window = create_window(persist=True, full=full)
     window.show()
     return int(app.exec())
 

@@ -159,8 +159,8 @@ class OperandEdit(QWidget):
         typed = self.edit.text().strip()
         note = ""
         if not typed.lower().startswith("0x") and _differs(typed, exact):
-            note = f" · se guarda como {exact[:34]}{'…' if len(exact) > 34 else ''}"
-        self.info.setText(f"{hex_text(fmt, bits)} · {cls}{note}")
+            note = f", se guarda como {exact[:34]}{'…' if len(exact) > 34 else ''}"
+        self.info.setText(f"{hex_text(fmt, bits)}, {cls}{note}")
         self.info.setToolTip(f"Valor exacto: {exact}")
         self._mark(False)
         return bits
@@ -225,11 +225,11 @@ class OperationTab(QWidget):
             ]
         )
         self.engine_box = QComboBox()
-        self.engine_box.addItem("cached · rápido", "cached")
-        self.engine_box.addItem("switch · transistor por transistor", "switch")
+        self.engine_box.addItem("Rápido, con tablas de las celdas", "cached")
+        self.engine_box.addItem("Transistor por transistor", "switch")
         self.engine_box.setToolTip(
-            "cached usa las tablas de verdad extraídas de cada celda; switch simula cada "
-            "transistor. Los dos dan los mismos bits (ADR-0008); switch tarda más."
+            "El rápido usa las tablas de verdad que se sacan de los transistores de cada "
+            "celda; el otro simula cada transistor. Los dos dan los mismos bits."
         )
         self.examples = QPushButton("Ejemplos ▾")
         self.examples.setToolTip("Casos notables de IEEE 754 para mostrar")
@@ -243,7 +243,7 @@ class OperationTab(QWidget):
         self.swap.clicked.connect(self.swap_operands)
         self.run_button = QPushButton("Calcular en transistores")
         self.run_button.setObjectName("primary")
-        self.run_button.setToolTip("Calcular (Enter)")
+        self.run_button.setToolTip("Calcula la operación con los transistores")
         self.run_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.run_button.clicked.connect(self.run)
 
@@ -288,9 +288,11 @@ class OperationTab(QWidget):
                 "transistores", "Transistores de la unidad que hizo la operación"
             ),
             "conmutaciones": StatTile(
-                "conmutaciones*", "Nodos que cambiaron de valor respecto de la operación anterior"
+                "conmutaciones", "Nodos que cambiaron de valor respecto de la operación anterior"
             ),
-            "eventos": StatTile("eventos*", "Transistores que pasaron a conducir o a cortarse"),
+            "eventos": StatTile(
+                "eventos", "Transistores que pasaron a conducir o a cortarse desde la anterior"
+            ),
             "ciclos": StatTile(
                 "ciclos estimados",
                 "Camino crítico repartido en ciclos del periodo elegido (ADR-0014)",
@@ -308,17 +310,18 @@ class OperationTab(QWidget):
         for k, tile in enumerate(self.tiles.values()):
             tiles.addWidget(tile, 0, k)
         out_layout.addLayout(tiles)
-        out_layout.addWidget(hint("* respecto de la operación anterior en la misma unidad."))
+        self.tiles_note = hint(
+            "Conmutaciones y eventos: respecto de la operación anterior en la misma unidad."
+        )
+        out_layout.addWidget(self.tiles_note)
         out_layout.addStretch(1)
 
         # -------------------------------------------------------------- bits
         self.bitfield = BitField(FORMATS["binary32"])
         self.bitfield.bit_clicked.connect(self._flip_bit)
-        bits_card, bits_layout = card("Bits IEEE 754 · signo | exponente | fracción")
+        bits_card, bits_layout = card("Bits IEEE 754")
         bits_layout.addWidget(self.bitfield)
-        bits_layout.addWidget(
-            hint("Haga clic en un bit de a o de b para invertirlo: la FPU recalcula al instante.")
-        )
+        bits_layout.addWidget(hint("Haga clic en un bit de a o de b para invertirlo."))
 
         # ----------------------------------------------------------- detalle
         self.period = QSpinBox()
@@ -342,21 +345,17 @@ class OperationTab(QWidget):
         cycles_layout.addLayout(period_row)
         cycles_layout.addWidget(self.strip)
         cycles_layout.addWidget(self.cycles, 1)
-        cycles_layout.addWidget(
-            hint(
-                "Estimación de ADR-0014: cada celda del camino crítico cuesta una unidad de "
-                "retardo y el reloj tiene un periodo fijo de celdas."
-            )
+        self.cycles_note = hint(
+            "Estimación de ADR-0014: cada celda del camino crítico cuesta una unidad de "
+            "retardo y el reloj tiene un periodo fijo de celdas."
         )
+        cycles_layout.addWidget(self.cycles_note)
         self.activity = BarList("Calcule una operación para ver qué etapas trabajaron.")
         self.activity.activated.connect(self._open_stage)
         activity_page = QWidget()
         activity_layout = QVBoxLayout(activity_page)
         activity_layout.addWidget(
-            hint(
-                "Conmutaciones de los nodos de cada etapa del datapath en esta operación. "
-                "Doble clic en una etapa para verla en la pestaña Transistores."
-            )
+            hint("Cuántos nodos cambiaron en cada etapa. Doble clic en una para verla por dentro.")
         )
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -371,7 +370,7 @@ class OperationTab(QWidget):
         self.details.setObjectName("subtabs")
         self.details.addTab(cycles_page, "Ciclos de reloj")
         self.details.addTab(activity_page, "Actividad por etapa")
-        self.details.addTab(self.stages, "Buses internos (dbg_)")
+        self.details.addTab(self.stages, "Buses internos")
         self.details.addTab(self.history_list, "Historial")
         details_card, details_layout = card()
         details_layout.addWidget(self.details)
@@ -405,7 +404,17 @@ class OperationTab(QWidget):
         self.engine_box.currentIndexChanged.connect(lambda _: self._inputs_changed())
         submit = QShortcut(QKeySequence("Ctrl+Return"), self)
         submit.activated.connect(self.run)
+        self.shortcuts = [submit]
         self._inputs_changed()
+
+    def set_presentation(self, on: bool) -> None:
+        """Modo exposición (ADR-0019): oculta los ejemplos, el historial, los eventos y las
+        notas, y desactiva los atajos de teclado. Nada se elimina."""
+        self.details.setTabVisible(self.details.indexOf(self.history_list), not on)
+        for w in (self.examples, self.tiles["eventos"], self.tiles_note, self.cycles_note):
+            w.setVisible(not on)
+        for sc in self.shortcuts:
+            sc.setEnabled(not on)
 
     # ---------------------------------------------------------------- estado
     @property
@@ -518,7 +527,7 @@ class OperationTab(QWidget):
         self.expr.setText(calc.expression)
         self.expr.setToolTip(f"Valor exacto del resultado: {exact_text(fmt, bits)}")
         self.hexline.setText(
-            f"{hex_text(fmt, bits)}  ·  {CLASS_NAMES[fmt.classify(bits)]}  ·  {fmt.name}"
+            f"{hex_text(fmt, bits)}   ({CLASS_NAMES[fmt.classify(bits)]} en {fmt.name})"
         )
         if calc.matches:
             self.verify.setObjectName("ok")
@@ -551,12 +560,12 @@ class OperationTab(QWidget):
         self._show_cycles()
         self.history.insert(0, calc)
         flags = str(calc.result.flags)
-        extra = "" if flags == "—" else f" · {flags}"
-        item = QListWidgetItem(f"{calc.expression}    [{fmt.name} · {calc.engine}{extra}]")
+        extra = "" if flags == "—" else f", {flags}"
+        item = QListWidgetItem(f"{calc.expression}    [{fmt.name}, {calc.engine}{extra}]")
         self.history_list.insertItem(0, item)
         self.status.emit(
-            f"{calc.expression} · {thousands(calc.transistors)} transistores · "
-            f"{calc.seconds * 1000:.1f} ms"
+            f"{calc.expression}, con {thousands(calc.transistors)} transistores "
+            f"en {calc.seconds * 1000:.1f} ms"
         )
         self.calculated.emit(calc)
 
@@ -569,8 +578,7 @@ class OperationTab(QWidget):
         stages = critical_stages(netlist)
         count = len(schedule(stages, period))
         self.cycles_summary.setText(
-            f"<b>{netlist.name}</b>: camino crítico de {total} celdas → <b>{count} ciclos</b> "
-            f"de {period} celdas"
+            f"Camino crítico de {total} celdas: <b>{count} ciclos</b> de {period} celdas"
         )
         self.strip.set_data([Segment(s.instance, s.label, s.cells) for s in stages], period)
         fill(self.cycles, [list(g) for g in groups])
