@@ -64,6 +64,7 @@ from transim.ui.gui.model import (
 from transim.ui.gui.operation_tab import OperationTab
 from transim.ui.gui.program_tab import ProgramTab
 from transim.ui.gui.transistor_tab import BLOCK_LIMIT, LEAF_CELLS, TransistorTab
+from transim.ui.gui.walkthrough_tab import WalkthroughTab
 
 TITLE = "TranSim754 — procesador IEEE 754 de transistores simulados"
 VERSION = "0.2.0"
@@ -86,6 +87,20 @@ recalcula al instante.</li>
 subnormales.</li>
 <li>Abajo: ciclos de reloj estimados, actividad por etapa (doble clic para verla en
 Transistores), buses internos e historial (doble clic para repetir).</li>
+</ul>
+
+<h3>Pestaña Recorrido: la operación paso a paso</h3>
+<ul>
+<li>Muestra la última operación como etapas conectadas, desde las entradas hasta el
+resultado: desempaquetar, comparar, restar exponentes, alinear, sumar, contar ceros,
+normalizar, redondear y casos especiales.</li>
+<li><b>Siguiente</b> (→) avanza un paso y <b>Reproducir</b> (Espacio) avanza solo. El
+panel <b>Qué está pasando</b> explica el paso con la cuenta hecha con los bits de la
+simulación.</li>
+<li>Doble clic en una etapa (o Enter) abre sus transistores en la pestaña
+Transistores.</li>
+<li>El orden es el del flujo de datos: el simulador calcula el estado final y no mide
+tiempos (ADR-0007).</li>
 </ul>
 
 <h3>Pestaña Transistores: la FPU por dentro</h3>
@@ -126,7 +141,7 @@ ajustar</td></tr>
 cambian se resaltan.</p>
 
 <h3>Atajos generales</h3>
-<p>Ctrl+1, Ctrl+2, Ctrl+3: pestañas · Ctrl+O: abrir programa · Ctrl+E: exportar el dibujo
+<p>Ctrl+1 a Ctrl+4: pestañas · Ctrl+O: abrir programa · Ctrl+E: exportar el dibujo
 · F11: pantalla completa · F1: esta guía.</p>
 """
 
@@ -185,7 +200,7 @@ class HelpDialog(QDialog):
 
 
 class MainWindow(QMainWindow):
-    """Ventana principal con las tres pestañas, menús y barra de estado."""
+    """Ventana principal con las cuatro pestañas, menús y barra de estado."""
 
     def __init__(self, *, persist: bool = False) -> None:
         super().__init__()
@@ -194,22 +209,27 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(app_icon())
         pool = QThreadPool.globalInstance()
         self.operation = OperationTab(pool)
+        self.walkthrough = WalkthroughTab()
         self.transistors = TransistorTab()
         self.program = ProgramTab(pool)
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         self.tabs.tabBar().setDrawBase(False)
         self.tabs.addTab(self.operation, "Operación")
+        self.tabs.addTab(self.walkthrough, "Recorrido")
         self.tabs.addTab(self.transistors, "Transistores")
         self.tabs.addTab(self.program, "Programa")
         self.tabs.setTabToolTip(
             0, "La FPU vista desde afuera: operandos, resultado, bits, ciclos (Ctrl+1)"
         )
         self.tabs.setTabToolTip(
-            1, "La FPU por dentro: esquema y silicio hasta cada transistor (Ctrl+2)"
+            1, "La última operación paso a paso, etapa por etapa del hardware (Ctrl+2)"
         )
         self.tabs.setTabToolTip(
-            2, "La FPU dentro de una CPU: programas .t754 en la máquina T754 (Ctrl+3)"
+            2, "La FPU por dentro: esquema y silicio hasta cada transistor (Ctrl+3)"
+        )
+        self.tabs.setTabToolTip(
+            3, "La FPU dentro de una CPU: programas .t754 en la máquina T754 (Ctrl+4)"
         )
         brand = QLabel(
             "<span style='font-size:15px; font-weight:800'>TranSim754</span>"
@@ -219,11 +239,13 @@ class MainWindow(QMainWindow):
         self.tabs.setCornerWidget(brand, Qt.Corner.TopLeftCorner)
         self.setCentralWidget(self.tabs)
 
+        self.operation.calculated.connect(self.walkthrough.show_calculation)
         self.operation.calculated.connect(self.transistors.show_calculation)
         self.operation.open_stage.connect(self._open_stage)
-        self.operation.open_block.connect(self._open_block)
+        self.walkthrough.open_block.connect(self._open_block)
+        self.walkthrough.go_operation.connect(self._go_operation)
         self.transistors.go_operation.connect(self._go_operation)
-        for tab in (self.operation, self.transistors, self.program):
+        for tab in (self.operation, self.walkthrough, self.transistors, self.program):
             tab.status.connect(self._status)
         self.statusBar().addPermanentWidget(QLabel("F1: guía rápida"))
         self._menus()
@@ -250,7 +272,7 @@ class MainWindow(QMainWindow):
         self._action(archivo, "Salir", "Ctrl+Q", self.close)
 
         ver = bar.addMenu("&Ver")
-        for k, name in enumerate(("Operación", "Transistores", "Programa")):
+        for k, name in enumerate(("Operación", "Recorrido", "Transistores", "Programa")):
             self._action(
                 ver, name, f"Ctrl+{k + 1}", lambda _=False, k=k: self.tabs.setCurrentIndex(k)
             )
@@ -341,7 +363,7 @@ class MainWindow(QMainWindow):
             return
         dark = theme.system_prefers_dark() if key == "sistema" else key == "oscuro"
         theme.apply(app, theme.DARK if dark else theme.LIGHT)
-        for tab in (self.operation, self.transistors, self.program):
+        for tab in (self.operation, self.walkthrough, self.transistors, self.program):
             tab.apply_theme()
 
     def _system_theme_changed(self, *_args: object) -> None:

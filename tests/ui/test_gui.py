@@ -16,6 +16,7 @@ QtWidgets = pytest.importorskip("PySide6.QtWidgets")
 
 from PySide6.QtCore import QPoint, QPointF, Qt, QThreadPool  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
+from PySide6.QtWidgets import QPushButton  # noqa: E402
 
 
 def esperar(app: object, condicion: Callable[[], bool], segundos: float = 20.0) -> None:
@@ -68,7 +69,7 @@ def test_ventana_principal(ventana: object) -> None:
     assert "TranSim754" in ventana.windowTitle()  # type: ignore[attr-defined]
     tabs = ventana.tabs  # type: ignore[attr-defined]
     nombres = [tabs.tabText(i) for i in range(tabs.count())]
-    assert nombres == ["Operación", "Transistores", "Programa"]
+    assert nombres == ["Operación", "Recorrido", "Transistores", "Programa"]
     menus = [a.text().replace("&", "") for a in ventana.menuBar().actions()]  # type: ignore[attr-defined]
     assert menus == ["Archivo", "Ver", "Ayuda"]
 
@@ -93,6 +94,8 @@ def test_atajos_de_pestanas(ventana: object) -> None:
     assert ventana.tabs.currentIndex() == 1  # type: ignore[attr-defined]
     QTest.keyClick(ventana, Qt.Key.Key_3, Qt.KeyboardModifier.ControlModifier)  # type: ignore[arg-type]
     assert ventana.tabs.currentIndex() == 2  # type: ignore[attr-defined]
+    QTest.keyClick(ventana, Qt.Key.Key_4, Qt.KeyboardModifier.ControlModifier)  # type: ignore[arg-type]
+    assert ventana.tabs.currentIndex() == 3  # type: ignore[attr-defined]
 
 
 # ---------------------------------------------------------------- operación
@@ -168,7 +171,7 @@ def test_actividad_abre_la_etapa_en_transistores(ventana: object, qapp: object) 
 def test_biblioteca_clic_en_una_entrada_del_dibujo(ventana: object, qapp: object) -> None:
     from transim.ui.gui.canvas import _aligned, measure
 
-    ventana.tabs.setCurrentIndex(1)  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(ventana.transistors)  # type: ignore[attr-defined]
     tr = ventana.transistors  # type: ignore[attr-defined]
     tr.library.select("NAND2")
     qapp.processEvents()  # type: ignore[attr-defined]
@@ -214,7 +217,7 @@ def test_celdas_secuenciales_y_compuestas(ventana: object) -> None:
 
 def test_clic_en_transistor_y_esc(ventana: object, qapp: object) -> None:
     tr = ventana.transistors  # type: ignore[attr-defined]
-    ventana.tabs.setCurrentIndex(1)  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(ventana.transistors)  # type: ignore[attr-defined]
     tr.library.select("INV")
     qapp.processEvents()  # type: ignore[attr-defined]
     item = tr.scene.cells[0]
@@ -233,7 +236,7 @@ def test_vista_de_silicio_y_corte(ventana: object, qapp: object) -> None:
     from transim.ui.gui.canvas import SiliconItem
 
     tr = ventana.transistors  # type: ignore[attr-defined]
-    ventana.tabs.setCurrentIndex(1)  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(ventana.transistors)  # type: ignore[attr-defined]
     tr.library.select("NOR2")
     tr.mode.set_value("silicon", emit=True)
     qapp.processEvents()  # type: ignore[attr-defined]
@@ -251,7 +254,7 @@ def test_ultima_operacion_chip_bloque_y_celda(ventana: object, qapp: object) -> 
 
     calcular(qapp, ventana)
     tr = ventana.transistors  # type: ignore[attr-defined]
-    ventana.tabs.setCurrentIndex(1)  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(ventana.transistors)  # type: ignore[attr-defined]
     tr.reveal("unit")
     netlist = tr.unit.netlist
     assert tr._target == ("unit", "")
@@ -413,11 +416,11 @@ def test_recuerda_tamano_pestana_y_tema(
     MainWindow._settings = lambda self: QSettings(archivo, QSettings.Format.IniFormat)  # type: ignore[method-assign]
     try:
         v = MainWindow(persist=True)
-        v.tabs.setCurrentIndex(2)
+        v.tabs.setCurrentIndex(3)
         v.set_theme("oscuro")
         borrar(v)
         w = MainWindow(persist=True)
-        assert w.tabs.currentIndex() == 2
+        assert w.tabs.currentIndex() == 3
         assert w.theme_choice == "oscuro"
         w.set_theme("claro")
         borrar(w)
@@ -457,21 +460,21 @@ def test_transistores_se_cargan_al_mostrarse(ventana: object, qapp: object) -> N
     op.a.set_text("9.5")
     calcular(qapp, ventana)
     assert tr._pending is op.last  # no se dibujó con la pestaña oculta
-    ventana.tabs.setCurrentIndex(1)  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(ventana.transistors)  # type: ignore[attr-defined]
     assert tr._pending is None
     assert tr.calc is op.last
 
 
 def test_atajos_de_programa_y_de_vista(ventana: object, qapp: object) -> None:
     pg = ventana.program  # type: ignore[attr-defined]
-    ventana.tabs.setCurrentIndex(2)  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(ventana.program)  # type: ignore[attr-defined]
     pg.source.setFocus()
     QTest.keyClick(pg.source, Qt.Key.Key_F5)
     esperar(qapp, lambda: pg.machine is not None and pg.load_button.isEnabled())
     QTest.keyClick(pg.source, Qt.Key.Key_F10)
     esperar(qapp, lambda: pg.machine.state.steps == 1 and pg.load_button.isEnabled())
     tr = ventana.transistors  # type: ignore[attr-defined]
-    ventana.tabs.setCurrentIndex(1)  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(ventana.transistors)  # type: ignore[attr-defined]
     tr.view.setFocus()
     QTest.keyClick(tr.view, Qt.Key.Key_S, Qt.KeyboardModifier.AltModifier)
     assert tr.silicon
@@ -484,7 +487,7 @@ def test_capas_del_silicio_se_ocultan_con_sus_casillas(ventana: object, qapp: ob
     from transim.ui.gui.canvas import LAYER_COLOR, TOGGLE_LAYERS
 
     tr = ventana.transistors  # type: ignore[attr-defined]
-    ventana.tabs.setCurrentIndex(1)  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(ventana.transistors)  # type: ignore[attr-defined]
     tr.library.select("NOR2")
     tr.mode.set_value("silicon", emit=True)
     qapp.processEvents()  # type: ignore[attr-defined]
@@ -506,7 +509,7 @@ def test_capas_del_silicio_se_ocultan_con_sus_casillas(ventana: object, qapp: ob
 # ------------------------------------------------------- paso a paso y flujo
 def test_paso_a_paso_resalta_y_atenua(ventana: object, qapp: object) -> None:
     tr = ventana.transistors  # type: ignore[attr-defined]
-    ventana.tabs.setCurrentIndex(1)  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(ventana.transistors)  # type: ignore[attr-defined]
     tr.library.select("XOR2")
     tr.mode.set_value("schematic", emit=True)
     qapp.processEvents()  # type: ignore[attr-defined]
@@ -525,7 +528,7 @@ def test_paso_a_paso_resalta_y_atenua(ventana: object, qapp: object) -> None:
 
 def test_paso_a_paso_no_aparece_en_silicio(ventana: object, qapp: object) -> None:
     tr = ventana.transistors  # type: ignore[attr-defined]
-    ventana.tabs.setCurrentIndex(1)  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(ventana.transistors)  # type: ignore[attr-defined]
     tr.library.select("NAND2")
     tr.mode.set_value("silicon", emit=True)
     qapp.processEvents()  # type: ignore[attr-defined]
@@ -533,16 +536,84 @@ def test_paso_a_paso_no_aparece_en_silicio(ventana: object, qapp: object) -> Non
     assert tr.scene.step_filter is None
 
 
-def test_diagrama_de_flujo_abre_el_bloque_al_hacer_clic(ventana: object, qapp: object) -> None:
-    from PySide6.QtCore import QPoint, Qt
-    from PySide6.QtTest import QTest
+def test_recorrido_vacio_lleva_a_operacion(ventana: object, qapp: object) -> None:
+    rec = ventana.walkthrough  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(rec)  # type: ignore[attr-defined]
+    assert rec.stack.currentIndex() == 0
+    boton = next(b for b in rec.findChildren(QPushButton) if b.text() == "Ir a Operación")
+    boton.click()
+    assert ventana.tabs.currentWidget() is ventana.operation  # type: ignore[attr-defined]
 
+
+def test_recorrido_paso_a_paso(ventana: object, qapp: object) -> None:
     calcular(qapp, ventana)
+    rec = ventana.walkthrough  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(rec)  # type: ignore[attr-defined]
+    qapp.processEvents()  # type: ignore[attr-defined]
+    assert rec.stack.currentIndex() == 1
+    assert rec.expression.text() == "1.5 + 2.25 = 3.75"
+    assert rec.count == 9
+    assert rec.index == 0
+    assert rec.counter.text() == "Paso 1 de 9"
+    assert "Desempaquetar" in rec.p_title.text()
+    assert not rec.prev.isEnabled()
+    # Teclado: → avanza, ← retrocede, Fin muestra todo, Inicio vuelve.
+    QTest.keyClick(rec.diagram, Qt.Key.Key_Right)
+    QTest.keyClick(rec.diagram, Qt.Key.Key_Right)
+    assert rec.index == 2
+    assert "128 − 127 = 1" in rec.p_detail.text()
+    QTest.keyClick(rec.diagram, Qt.Key.Key_Left)
+    assert rec.index == 1
+    QTest.keyClick(rec.diagram, Qt.Key.Key_End)
+    assert rec.index == 8
+    assert not rec.next.isEnabled()
+    assert "0x40700000" in rec.p_detail.text()
+    QTest.keyClick(rec.diagram, Qt.Key.Key_Right)  # en el último paso no pasa nada
+    assert rec.index == 8
+    QTest.keyClick(rec.diagram, Qt.Key.Key_Home)
+    assert rec.index == 0
+    # Las cajas que faltan no muestran su resultado.
+    assert [b.state for b in rec.diagram.boxes[:2]] == ["now", "todo"]
+
+
+def test_recorrido_clic_y_doble_clic(ventana: object, qapp: object) -> None:
+    calcular(qapp, ventana)
+    rec = ventana.walkthrough  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(rec)  # type: ignore[attr-defined]
+    qapp.processEvents()  # type: ignore[attr-defined]
+    vista = rec.diagram
+    clic_en(vista, vista.item_center(3))
+    assert rec.index == 3
+    assert "Alinear mantisa" in rec.p_title.text()
+    clic_en(vista, vista.item_center(4), doble=True)
+    tr = ventana.transistors  # type: ignore[attr-defined]
+    assert ventana.tabs.currentWidget() is tr  # type: ignore[attr-defined]
+    assert tr.tree.currentItem().data(0, Qt.ItemDataRole.UserRole).path == "mant_addsub"
+
+
+def test_recorrido_se_reproduce_solo(ventana: object, qapp: object) -> None:
+    calcular(qapp, ventana)
+    rec = ventana.walkthrough  # type: ignore[attr-defined]
+    rec.toggle_play()
+    assert rec.timer.isActive()
+    assert rec.play.text().endswith("Pausa")
+    for _ in range(rec.count):
+        rec._tick()
+    assert rec.index == rec.count - 1
+    assert not rec.timer.isActive()
+
+
+def test_recorrido_conserva_el_paso_al_recalcular(ventana: object, qapp: object) -> None:
+    """Al invertir un bit en Operación se compara el mismo paso con el valor nuevo."""
+    calcular(qapp, ventana)
+    rec = ventana.walkthrough  # type: ignore[attr-defined]
+    rec.go(2)
     op = ventana.operation  # type: ignore[attr-defined]
-    recibidos: list[str] = []
-    op.open_block.connect(recibidos.append)
-    flow = op.flow
-    rect = next(it for it in flow.scene().items() if it.data(0) == "order")
-    centro = flow.mapFromScene(rect.sceneBoundingRect().center())
-    QTest.mouseClick(flow.viewport(), Qt.MouseButton.LeftButton, pos=QPoint(centro.x(), centro.y()))
-    assert recibidos == ["order"]
+    op.b.set_text("4")
+    calcular(qapp, ventana)
+    assert rec.index == 2
+    assert "129 − 127 = 2" in rec.p_detail.text()
+    op.op.set_value("mul")
+    calcular(qapp, ventana)
+    assert rec.index == 0  # otra unidad: vuelve al inicio
+    assert "bloques en orden de flujo" in rec.subtitle.text()

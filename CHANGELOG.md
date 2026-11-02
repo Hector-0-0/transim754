@@ -8,9 +8,13 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 ### Agregado
 - Esquema paso a paso: «Siguiente» muestra las etapas de una celda en orden de dependencia
   de señal, resalta sus transistores y atenúa el resto (`gui/steps.py`).
-- Pestaña Operación, «Flujo de datos»: diagrama de los bloques de primer nivel de la
-  operación, con sus salidas, sus valores y las conexiones entre ellos; un clic abre el
-  esquema del bloque en Transistores (`gui/flow.py`).
+- Pestaña **Recorrido**: la última operación paso a paso por las etapas del hardware
+  (desempaquetar, comparar, restar exponentes, alinear, sumar o restar, contar ceros,
+  normalizar, redondear y casos especiales), conectadas desde las entradas hasta el
+  resultado. El panel «Qué está pasando» explica cada paso con la cuenta hecha con los
+  bits de la simulación; Siguiente, Reproducir y las flechas avanzan; doble clic o Enter
+  abre los transistores del paso. La multiplicación y la división muestran sus bloques
+  con entradas y salidas (`gui/walkthrough.py`, `gui/walkthrough_tab.py`).
 - Vistas de la pestaña Transistores (ADR-0015): **esquema CMOS** de cada celda (redes
   serie-paralelo, transmission gates y cables entre etapas), **silicio** (layout
   ilustrativo de celdas estándar verificado contra el netlist, filas de celdas y plano

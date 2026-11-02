@@ -4,6 +4,33 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-11-01 · Pestaña Recorrido: la operación paso a paso
+
+**Hecho**
+- Pestaña nueva **Recorrido** entre Operación y Transistores: las 9 etapas de la
+  suma/resta (desempaquetar → comparar → restar exponentes → alinear → sumar o restar →
+  contar ceros → normalizar → redondear → casos especiales) como cajas conectadas desde
+  las entradas hasta el resultado. Siguiente, Reproducir y las flechas avanzan; las
+  etapas que faltan aparecen en gris y sin valor.
+- Panel «Qué está pasando» con la cuenta de cada paso hecha con los bits leídos de las
+  instancias de la simulación (por ejemplo `d = 128 − 127 = 1`, `1.10₂ >> 1 = 0.11₂`).
+  Doble clic o Enter abre el bloque del paso en Transistores.
+- Multiplicación y división: sus bloques en orden de flujo con entradas y salidas, sin
+  textos propios todavía.
+- «Flujo de datos» de la pestaña Operación eliminado: lo reemplaza el recorrido.
+
+**Decisiones**
+- El orden de los pasos es el de la dependencia de los datos (ADR-0007: el motor no
+  tiene tiempo); la interfaz lo dice. Animar el acarreo bit a bit pide un ADR propio.
+- Los valores se copian al construir el recorrido: la unidad compartida puede calcular
+  otra cosa después.
+
+**Siguiente**
+- Celda en compuertas lógicas y esquema CMOS más limpio; barra de la pestaña
+  Transistores simplificada.
+
+---
+
 ## 2026-10-25 (noche) · Interfaz nueva: esquema, silicio y corte del transistor
 
 **Hecho**

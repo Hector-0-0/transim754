@@ -36,7 +36,6 @@ from transim.core.unit import EngineName
 from transim.fpu.format import FORMATS, FloatFormat
 from transim.metrics.stages import STAGE_NAMES, critical_stages, reference_period, schedule
 from transim.ui.gui import model
-from transim.ui.gui.flow import FlowView
 from transim.ui.gui.model import (
     CLASS_NAMES,
     EXAMPLES,
@@ -192,7 +191,6 @@ class OperationTab(QWidget):
     calculated = Signal(object)
     """Se emite con cada :class:`Calculation` terminado."""
     open_stage = Signal(str)
-    open_block = Signal(str)
     """Pide ver una etapa en la pestaña de transistores."""
     status = Signal(str)
     """Mensaje para la barra de estado."""
@@ -373,9 +371,6 @@ class OperationTab(QWidget):
         self.details.setObjectName("subtabs")
         self.details.addTab(cycles_page, "Ciclos de reloj")
         self.details.addTab(activity_page, "Actividad por etapa")
-        self.flow = FlowView()
-        self.flow.block_clicked.connect(self.open_block)
-        self.details.addTab(self.flow, "Flujo de datos")
         self.details.addTab(self.stages, "Buses internos (dbg_)")
         self.details.addTab(self.history_list, "Historial")
         details_card, details_layout = card()
@@ -554,7 +549,6 @@ class OperationTab(QWidget):
             [Bar(name, STAGE_NAMES.get(name, name), n) for name, n in calc.stage_toggles.items()]
         )
         self._show_cycles()
-        self.flow.show_unit(calc.unit)
         self.history.insert(0, calc)
         flags = str(calc.result.flags)
         extra = "" if flags == "—" else f" · {flags}"
@@ -621,7 +615,6 @@ class OperationTab(QWidget):
             self.open_stage.emit(key)
 
     def apply_theme(self) -> None:
-        self.flow.refresh()
         widgets: list[QWidget] = [self.bitfield, self.flags, self.strip, self.activity]
         widgets += list(self.tiles.values())
         for w in widgets:

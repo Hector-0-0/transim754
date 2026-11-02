@@ -157,7 +157,13 @@ MODULOS: dict[str, Modulo] = {
     "metrics": Modulo("Métricas", ["tests/metrics"], [22, 23, 24], ["src/transim/metrics"]),
     "gui": Modulo(
         "GUI",
-        ["tests/ui/test_gui.py", "tests/ui/test_circuito.py", "tests/ui/test_modelo.py"],
+        [
+            "tests/ui/test_gui.py",
+            "tests/ui/test_circuito.py",
+            "tests/ui/test_modelo.py",
+            "tests/ui/test_pasos_y_flujo.py",
+            "tests/ui/test_recorrido.py",
+        ],
         [25, 26],
         ["src/transim/ui/gui"],
     ),
