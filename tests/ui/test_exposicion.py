@@ -222,11 +222,14 @@ def test_clic_en_entradas_y_resultado(expo: object, qapp: object) -> None:
 
 # ------------------------------------------------------------------ CLI
 def test_la_opcion_completo_esta_en_la_ayuda() -> None:
+    import re
+
     from typer.testing import CliRunner
 
     from transim.ui.cli import app
 
     salida = CliRunner().invoke(app, ["gui", "--help"]).output
+    salida = re.sub(r"\x1b\[[0-9;]*m", "", salida)  # en CI la ayuda sale con colores
     assert "--completo" in salida
 
 
