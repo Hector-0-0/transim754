@@ -66,6 +66,8 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 - Diapositivas con capturas de las vistas nuevas: Recorrido, plano del chip, rejilla del
   acarreo, compuertas de XOR2 y FA, esquema de NAND2 con sus redes y la celda junto a su
   silicio; se quitan las del silicio en filas.
+- Diapositiva «Cómo se usa» con las cuatro pestañas y guion de la exposición
+  (`docs/exposicion/guion.md`): seis bloques, cada uno con su demostración en vivo.
 - El chip y los bloques ya no se dibujan como filas de celdas estándar (reemplazado por el
   plano de ADR-0017).
 - Esquema de transistores más limpio: fondo de la red pull-up y de la pull-down con su

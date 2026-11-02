@@ -26,6 +26,17 @@ lang: es
 | L4 | Máquina T754: decodificador, banco de registros, control |
 | L5 | CLI `transim`, interfaz gráfica y métricas |
 
+## Cómo se usa
+
+| Pestaña | Para qué |
+|---|---|
+| **Operación** (Ctrl+1) | Escribir a y b, elegir + − × ÷ y el formato, **Calcular en transistores**. Resultado, bits y flags; un clic en un bit lo invierte. |
+| **Recorrido** (Ctrl+2) | La misma operación en las etapas del hardware; **Siguiente** (→) avanza y el panel explica cada cuenta. |
+| **Transistores** (Ctrl+3) | Del plano del chip a cada transistor: rejilla de bits, compuertas, esquema CMOS y silicio. |
+| **Programa** (Ctrl+4) | Programas `.t754` en la CPU T754: ensamblar, F10 paso a paso, F8 hasta HALT. |
+
+Se abre con `transim gui`; F1 muestra la guía rápida.
+
 ## Del transistor a la celda
 
 - **Inversor:** 1 pMOS + 1 nMOS (2 T).
@@ -144,7 +155,7 @@ $ transim calc 1.5 + 2.25 --trace
 - Cada bloque se compara con un **modelo de referencia**, y este con NumPy.
 - Cuatro operaciones × dos formatos: todos los pares borde y 10 000 aleatorios.
 - **0 discrepancias** bit a bit, incluidos los cinco flags.
-- 595 pruebas automáticas rápidas en la integración continua.
+- 613 pruebas automáticas; las 596 rápidas corren en cada cambio.
 
 ## Transistores por unidad
 
