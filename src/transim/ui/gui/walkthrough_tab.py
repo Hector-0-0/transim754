@@ -378,6 +378,7 @@ class WalkthroughTab(QWidget):
     """Recorrido paso a paso de la última operación."""
 
     open_block = Signal(str)
+    open_propagation = Signal(str)
     go_operation = Signal()
     status = Signal(str)
 
@@ -472,9 +473,16 @@ class WalkthroughTab(QWidget):
         self.p_open.setToolTip("Abrir este bloque en la pestaña Transistores (Enter)")
         self.p_open.setCursor(Qt.CursorShape.PointingHandCursor)
         self.p_open.clicked.connect(lambda: self._activate(self.index))
+        self.p_wave = QPushButton("Ver la propagación ▸")
+        self.p_wave.setToolTip(
+            "Abrir la rejilla de bits del bloque y ver el cambio avanzar celda por celda"
+        )
+        self.p_wave.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.p_wave.clicked.connect(self._propagate)
         for w in (self.p_step, self.p_title, self.p_meta, self.p_text, self.p_detail, self.p_links):
             pl.addWidget(w)
         pl.addWidget(self.p_open)
+        pl.addWidget(self.p_wave)
         self.p_note = hint("")
         pl.addWidget(self.p_note)
         pl.addStretch(1)
@@ -609,6 +617,13 @@ class WalkthroughTab(QWidget):
         self.status.emit(f"Abriendo «{step.title}» en Transistores")
         self.open_block.emit(step.paths[0])
 
+    def _propagate(self) -> None:
+        if self.walk is None:
+            return
+        self.stop()
+        step = self.walk.steps[self.index]
+        self.open_propagation.emit(step.paths[0])
+
     # ------------------------------------------------------------ panel
     def _fill(self) -> None:
         walk = self.walk
@@ -628,6 +643,9 @@ class WalkthroughTab(QWidget):
         self.p_meta.setText(f"{thousands(step.transistors)} transistores · bloque {blocks}")
         self.p_text.setText(step.text)
         self.p_detail.setText(step.detail)
+        self.p_wave.setText(
+            "Ver el acarreo ▸" if step.key == "mant_addsub" else "Ver la propagación ▸"
+        )
         parts = []
         if step.sources:
             parts.append("Recibe de: " + ", ".join(walk.steps[i].title for i in step.sources))

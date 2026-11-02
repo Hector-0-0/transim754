@@ -10,16 +10,18 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fractions import Fraction
 
 from transim.core.engine_switch import SwitchEngine
 from transim.core.netlist import Instance, Netlist
+from transim.core.signals import Logic
 from transim.core.unit import EngineName, HardwareUnit
 from transim.cpu import isa
 from transim.fpu.format import FloatFormat, FPClass, FPResult
 from transim.metrics.stages import activity_by_stage, critical_stages, schedule
 from transim.reference import fpu as ref
+from transim.ui.gui.propagation import Replay, replay
 
 MINUS = "−"
 
@@ -158,6 +160,19 @@ class Calculation:
     op: str = "add"
     engine: str = "cached"
     reference: FPResult | None = None
+    before: tuple[Logic, ...] = ()
+    """Estado estable de la unidad antes de esta operación (para la propagación, ADR-0018)."""
+    after: tuple[Logic, ...] = ()
+    """Estado estable que dejó esta operación."""
+    _replay: Replay | None = field(default=None, repr=False, compare=False)
+
+    def propagation(self) -> Replay:
+        """La operación reproducida con retardo unitario por celda (se calcula una vez)."""
+        if self._replay is None:
+            netlist = self.unit.netlist
+            inputs = [n.id for n in netlist.inputs.values()]
+            self._replay = replay(netlist, self.before, self.after, inputs)
+        return self._replay
 
     @property
     def matches(self) -> bool:
@@ -215,9 +230,11 @@ def calculate(fmt: FloatFormat, op: str, a: int, b: int, engine: EngineName) -> 
     if op in ("add", "sub"):
         inputs["sub"] = int(op == "sub")
     unit.engine.reset_counters()
+    before = tuple(unit.engine.values())
     start = time.perf_counter()
     outputs = unit.evaluate(inputs)
     seconds = time.perf_counter() - start
+    after = tuple(unit.engine.values())
     stats = unit.engine.stats()
     stages = {k: v for k, v in outputs.items() if k.startswith("dbg_")}
     return Calculation(
@@ -235,6 +252,8 @@ def calculate(fmt: FloatFormat, op: str, a: int, b: int, engine: EngineName) -> 
         op=op,
         engine=engine,
         reference=_REFERENCE[op](fmt, a, b),
+        before=before,
+        after=after,
     )
 
 

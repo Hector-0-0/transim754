@@ -16,7 +16,7 @@ from __future__ import annotations
 import math
 from functools import cache
 
-from PySide6.QtCore import QPoint, QRectF, Qt, Signal
+from PySide6.QtCore import QPoint, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QImage, QKeySequence, QPainter, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMenu,
     QPushButton,
+    QSlider,
     QSplitter,
     QStackedWidget,
     QTableWidget,
@@ -50,9 +51,11 @@ from transim.core.node import NodeKind
 from transim.core.signals import Logic
 from transim.core.transistor import Conduction, TransistorType
 from transim.core.unit import HardwareUnit
+from transim.metrics.critical_path import cell_depth
 from transim.metrics.stages import GLUE, STAGE_NAMES
 from transim.ui.gui import gates as gl
 from transim.ui.gui import theme as th
+from transim.ui.gui.bitgrid import Grid, grid
 from transim.ui.gui.canvas import (
     LAYER_COLOR,
     LAYER_NAMES,
@@ -70,10 +73,13 @@ from transim.ui.gui.circuit import Binding, active_path, bind_cell, bind_instanc
 from transim.ui.gui.cross_section import CrossSection, Device, explain
 from transim.ui.gui.floorplan import Tile
 from transim.ui.gui.model import Calculation, instance_toggles
+from transim.ui.gui.propagation import Replay, ReplayReader
 from transim.ui.gui.steps import Step, cell_steps, input_ids
 from transim.ui.gui.widgets import Segmented, card, hint, stage_color, thousands
 
 BLOCK_LIMIT = 2500
+TIME_MS = 140
+"""Duración de cada retardo de celda al reproducir la propagación."""
 GROUP_CELLS = 24
 """Con más celdas sueltas que esto, el plano de un bloque las agrupa por tipo."""
 """Transistores máximos de un bloque para dibujar su esquema completo."""
@@ -581,6 +587,41 @@ class TransistorTab(QWidget):
             sr.addWidget(w)
         sr.addWidget(self.step_text, 1)
         self.step_row.setVisible(False)
+        # Propagación con retardo unitario (ADR-0018), sobre la rejilla de un bloque.
+        self.time_t: int = 0
+        self._worst = 0
+        self.time_row = QWidget()
+        tr_layout = QHBoxLayout(self.time_row)
+        tr_layout.setContentsMargins(0, 0, 0, 0)
+        tr_layout.setSpacing(6)
+        caption2 = QLabel("Propagación:")
+        caption2.setObjectName("hint")
+        tr_layout.addWidget(caption2)
+        self.time_first = self._tool(
+            "⏮", "Al instante 0: recién llegan las entradas", lambda: self.set_time(0)
+        )
+        self.time_back = self._tool("◀", "Un retardo atrás", lambda: self.set_time(self.time_t - 1))
+        self.time_next = self._tool(
+            "▶", "Un retardo adelante", lambda: self.set_time(self.time_t + 1)
+        )
+        self.time_play = self._tool(
+            "⏵ Reproducir", "Ver cómo se propaga el cambio", self.toggle_time
+        )
+        self.time_slider = QSlider(Qt.Orientation.Horizontal)
+        self.time_slider.setMinimumWidth(140)
+        self.time_slider.valueChanged.connect(self.set_time)
+        self.time_text = QLabel()
+        self.time_text.setObjectName("hint")
+        self.time_text.setWordWrap(True)
+        for w in (self.time_first, self.time_back, self.time_next, self.time_play):
+            tr_layout.addWidget(w)
+        tr_layout.addWidget(self.time_slider, 1)
+        tr_layout.addWidget(self.time_text, 2)
+        self.time_row.setVisible(False)
+        self.replay: Replay | None = None
+        self._time_timer = QTimer(self)
+        self._time_timer.setInterval(TIME_MS)
+        self._time_timer.timeout.connect(self._time_tick)
         self.steps: list[Step] = []
         self.step_pos = -1
         self.info = QLabel()
@@ -597,6 +638,7 @@ class TransistorTab(QWidget):
         cl.addLayout(bar)
         cl.addWidget(self.layer_row)
         cl.addWidget(self.step_row)
+        cl.addWidget(self.time_row)
         cl.addWidget(self.info)
         frame = QFrame()
         frame.setObjectName("card")
@@ -675,17 +717,20 @@ class TransistorTab(QWidget):
         self._preferred = mode
         self.redraw()
 
-    def _allow_schematic(self, allowed: bool, why: str = "") -> bool:
-        """Habilita o no la vista Esquema y elige la vista del próximo dibujo.
+    def _allow_schematic(self, allowed: bool, why: str = "", gates: bool | None = None) -> bool:
+        """Habilita o no las vistas Compuertas y Transistores y elige la del próximo dibujo.
+
+        ``gates`` habilita Compuertas aparte (la rejilla de un bloque no tiene límite).
 
         Returns:
-            True si se pasó a Silicio porque el esquema no está disponible.
+            True si se pasó a Silicio porque la vista elegida no está disponible.
         """
+        ok = {"gates": allowed if gates is None else gates, "schematic": allowed, "silicon": True}
         for key in ("gates", "schematic"):
-            self.mode.set_option_enabled(key, allowed, self._tips[key] if allowed else why)
-        wanted = self._preferred if allowed else "silicon"
+            self.mode.set_option_enabled(key, ok[key], self._tips[key] if ok[key] else why)
+        wanted = self._preferred if ok[self._preferred] else "silicon"
         self.mode.set_value(wanted)
-        return not allowed and self._preferred != "silicon"
+        return not ok[self._preferred]
 
     def _set_mode(self, mode: str) -> None:
         if self.mode.buttons[mode].isEnabled():
@@ -799,6 +844,89 @@ class TransistorTab(QWidget):
         self.step_pos = -1
         self._apply_step()
 
+    # ------------------------------------------------------------ propagación
+    def _grid_shown(self) -> bool:
+        return self.gates and self._target[0] == "instance" and self._many()
+
+    def _time_refresh(self) -> None:
+        """Prepara la propagación de la última operación si se dibuja una rejilla."""
+        self._time_timer.stop()
+        self.time_play.setText("⏵ Reproducir")
+        shown = self._grid_shown() and self.calc is not None
+        self.time_row.setVisible(shown)
+        if not shown or self.calc is None:
+            self.replay = None
+            return
+        self.replay = self.calc.propagation()
+        if not self.replay.valid:
+            for w in (self.time_first, self.time_back, self.time_next, self.time_play):
+                w.setEnabled(False)
+            self.time_slider.setEnabled(False)
+            self.time_text.setText(f"No se puede reproducir: {self.replay.reason}.")
+            return
+        for w in (self.time_first, self.time_back, self.time_next, self.time_play):
+            w.setEnabled(True)
+        self.time_slider.setEnabled(True)
+        if self.unit is not None:
+            self._worst = cell_depth(self.unit.netlist)
+        self.time_slider.blockSignals(True)
+        self.time_slider.setRange(0, self.replay.length)
+        self.time_slider.blockSignals(False)
+        self.set_time(self.replay.length)
+
+    def set_time(self, t: int) -> None:
+        """Muestra la rejilla en el instante ``t`` (en retardos de celda)."""
+        r = self.replay
+        if r is None or not r.valid or self.unit is None:
+            return
+        t = max(0, min(r.length, t))
+        self.time_t = t
+        if self.time_slider.value() != t:
+            self.time_slider.blockSignals(True)
+            self.time_slider.setValue(t)
+            self.time_slider.blockSignals(False)
+        self.scene.values = ReplayReader(r.values_at(t), self.unit.engine)
+        self.scene.flash_cells = r.cells_changed[t - 1] if t > 0 else frozenset()
+        self.scene.refresh()
+        paths = frozenset(c.binding.path for c in self.scene.cells)
+        last = r.last_change(paths)
+        worst = self._worst
+        moving = len(self.scene.flash_cells & paths)
+        self.time_text.setText(
+            f"<b>t = {t}</b> de {r.length} retardos · cambian {moving} celdas · el bloque "
+            f"termina en t = {last} · peor caso de la unidad: {worst}"
+        )
+        self.time_back.setEnabled(t > 0)
+        self.time_next.setEnabled(t < r.length)
+
+    def toggle_time(self) -> None:
+        if self._time_timer.isActive():
+            self._time_timer.stop()
+            self.time_play.setText("⏵ Reproducir")
+            return
+        if self.replay is None or not self.replay.valid:
+            return
+        if self.time_t >= self.replay.length:
+            self.set_time(0)
+        self._time_timer.start()
+        self.time_play.setText("⏸ Pausa")
+
+    def _time_tick(self) -> None:
+        if self.replay is None or self.time_t >= self.replay.length:
+            self._time_timer.stop()
+            self.time_play.setText("⏵ Reproducir")
+            return
+        self.set_time(self.time_t + 1)
+
+    def show_propagation(self, path: str, play: bool = True) -> None:
+        """Abre la rejilla del bloque ``path`` y, si ``play``, reproduce su propagación."""
+        self.reveal(path)
+        if self.mode.buttons["gates"].isEnabled() and not self.gates:
+            self._set_mode("gates")
+        if play and self.time_row.isVisible() and self.replay is not None and self.replay.valid:
+            self.set_time(0)
+            self.toggle_time()
+
     def _layer_toggled(self, layer: str, shown: bool) -> None:
         """Muestra u oculta una capa del silicio y repinta."""
         if shown:
@@ -901,6 +1029,15 @@ class TransistorTab(QWidget):
             )
             parts.append(f"<span style='color:{t.on}; font-size:14px'>■</span> canal que conduce")
             text = " · ".join(parts) + ". Layout ilustrativo generado del netlist, no a escala."
+        elif self._grid_shown():
+            text = (
+                "Rejilla de bits: cada recuadro es una celda (columna = bit, fila = nivel "
+                f"lógico) pintada con su salida: <span style='color:{t.one}'>■</span> 1 · "
+                f"<span style='color:{t.zero}'>■</span> 0; la marca de la derecha es su segunda "
+                "salida (el acarreo en un FA). Borde amarillo: cambió en ese instante. "
+                "Propagación con retardo unitario por celda (ADR-0018): puede mostrar valores "
+                "pasajeros que el motor no calcula."
+            )
         elif self.gates:
             text = (
                 f"<span style='color:{t.one}; font-size:14px'>━</span> 1 (cable grueso) · "
@@ -935,6 +1072,7 @@ class TransistorTab(QWidget):
         clickable: set[int],
         fit: bool,
         floor: tuple[list[Tile], list[str], tuple[str, str]] | None = None,
+        bits: Grid | None = None,
     ) -> None:
         """Dibuja ``cells`` en el modo actual. En Silicio: el plano ``floor`` si se da; una
         sola celda, junto a su esquema; unas pocas celdas, en una fila."""
@@ -947,6 +1085,10 @@ class TransistorTab(QWidget):
             self.scene.show_pair(cells[0][0], cells[0][1], values, clickable=clickable)  # type: ignore[arg-type]
         elif self.silicon:
             self.scene.show_silicon(cells, values, clickable=clickable)  # type: ignore[arg-type]
+        elif self.gates and bits is not None:
+            by_path = {b.path: b for b, _ in cells}
+            slots = [(by_path[s.inst.path], s.column, s.row, s.sub) for s in bits.slots]
+            self.scene.show_grid(slots, bits.columns, values)  # type: ignore[arg-type]
         elif self.gates:
             self.scene.show_gates(cells, values, clickable=clickable)  # type: ignore[arg-type]
         else:
@@ -961,6 +1103,7 @@ class TransistorTab(QWidget):
         self.step_pos = -1
         self._steps_refresh()
         self._update_panel()
+        self._time_refresh()
         if keep_view:
             self.view.resetTransform()
             self.view.scale(zoom, zoom)
@@ -1301,9 +1444,11 @@ class TransistorTab(QWidget):
             title = f"{path} ({inst.definition.name})"
             base = "" if inst.is_leaf else f"{inst.path}."
         allowed = n <= BLOCK_LIMIT
+        block = kind == "instance" and not self._instances[path].is_leaf
         forced = self._allow_schematic(
             allowed,
             f"Más de {thousands(BLOCK_LIMIT)} transistores: véalo en Silicio o abra una parte",
+            gates=True if block else None,
         )
         bindings = [(bind_instance(c), c.path[len(base) :] if base else c.path) for c in cells]
         floor = None
@@ -1315,7 +1460,8 @@ class TransistorTab(QWidget):
             )
             tiles, subs = self._tiles(children, top_level=False)
             floor = (tiles, subs, (title, f"{thousands(n)} transistores"))
-        self._draw(bindings, engine, set(), fit, floor=floor)
+        bits = grid(netlist, path) if block else None
+        self._draw(bindings, engine, set(), fit, floor=floor, bits=bits)
         on = sum(1 for c in cells for t in c.transistors if engine.conduction(t) is Conduction.ON)
         toggles = sum(instance_toggles(engine, c) for c in cells)
         self.breadcrumb.setText(self._crumbs(kind, path))
