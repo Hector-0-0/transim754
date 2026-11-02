@@ -1,6 +1,7 @@
 # ADR-0015 · Vistas de la pestaña de transistores: esquema, silicio y corte
 
-- **Estado:** Aceptada
+- **Estado:** Aceptada. El dibujo de un bloque y del chip en filas de celdas fue
+  reemplazado por ADR-0017 (plano proporcional).
 - **Fecha:** 2026-10-25
 
 ## Contexto

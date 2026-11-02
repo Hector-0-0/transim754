@@ -45,7 +45,7 @@ from PySide6.QtWidgets import (
 
 from transim.core.signals import Logic
 from transim.core.transistor import Conduction
-from transim.ui.gui import gates, silicon
+from transim.ui.gui import floorplan, gates, silicon
 from transim.ui.gui import theme as th
 from transim.ui.gui.circuit import Binding, ValueReader, active_path
 from transim.ui.gui.schematic import (
@@ -79,6 +79,10 @@ PIN_FONT = _font(6.5, bold=True)
 # Las capas usan tonos que no son los de los valores lógicos (rojo = 1, azul = 0, verde =
 # conduce): así un mismo color no significa dos cosas en el esquema y en el silicio.
 DIM_OPACITY = 0.16
+PAIR_GAP = 90.0
+"""Espacio entre el esquema y el silicio de una celda dibujada lado a lado."""
+PIN_RISE = 26.0
+"""Altura de los nombres de los puertos sobre la celda de silicio."""
 GATE_MARGIN = 4.0
 """Margen alrededor de una compuerta para el ratón y el resaltado."""
 """Opacidad de lo que no forma parte del paso mostrado en el esquema."""
@@ -186,6 +190,16 @@ class CellItem(QGraphicsItem):
         self._local = {n.id: k for k, n in binding.nodes.items()}
         self.setAcceptHoverEvents(True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemUsesExtendedStyleOption, True)
+
+    def linked(self, other: object) -> bool:
+        """True si ``other`` dibuja la misma celda (por ejemplo, su esquema y su silicio)."""
+        if other is self:
+            return True
+        return (
+            isinstance(other, CellItem)
+            and other.binding.path == self.binding.path
+            and other.binding.netlist is self.binding.netlist
+        )
 
     def node_id(self, local: int) -> int:
         """Id real del nodo ``local`` de la definición."""
@@ -389,8 +403,8 @@ class SchematicItem(CellItem):
         painter.translate(d.x, d.y)
         if d.angle:
             painter.rotate(d.angle)
-        sel = self.board.selected_item is self and self.board.selected_transistor == d.index
-        hov = self.board.hover_item is self and self.board.hover_transistor == d.index
+        sel = self.linked(self.board.selected_item) and self.board.selected_transistor == d.index
+        hov = self.linked(self.board.hover_item) and self.board.hover_transistor == d.index
         if sel or hov:
             painter.setPen(pen(t.select, 1.6) if sel else Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(alpha(t.select, 64 if sel else 36)))
@@ -444,7 +458,7 @@ class SchematicItem(CellItem):
             (self.board.hover_item, self.board.hover_transistor),
             (self.board.selected_item, self.board.selected_transistor),
         ):
-            if owner is self and index is not None:
+            if self.linked(owner) and index is not None:
                 shown.add(names[index].name)
         for text in self.geo.texts:
             if text.kind == "name" and text.text not in shown:
@@ -572,10 +586,9 @@ class SiliconItem(CellItem):
         super().__init__(binding, title, board)
         self.lay = silicon.build(binding.netlist)
         self.flipped = flipped
+        self.pins_outside = False
+        """Nombres de los puertos encima de la celda, con una línea hasta su metal."""
         self._by_layer = {name: self.lay.layer(name) for name in silicon.LAYERS}
-
-    def boundingRect(self) -> QRectF:  # noqa: N802
-        return QRectF(0, 0, self.lay.width, self.lay.height)
 
     def _r(self, s: silicon.Shape) -> QRectF:
         if self.flipped:
@@ -602,7 +615,7 @@ class SiliconItem(CellItem):
             return
         t = th.current()
         lod = option.levelOfDetailFromTransform(painter.worldTransform())
-        rect = self.boundingRect()
+        rect = QRectF(0, 0, self.lay.width, self.lay.height)
         well = self._r(silicon.Shape("nwell", 0, 0, self.lay.width, self.lay.well_bottom))
         state = self.binding.state(self.board.values)
         if lod < 0.09:
@@ -656,7 +669,9 @@ class SiliconItem(CellItem):
         if "metal2" in shown:
             self._fill(painter, t, "metal2", value, by_value, detail)
         self._paint_marks(painter, t)
-        if lod > 0.55:
+        if self.pins_outside:
+            self._paint_pins_outside(painter, t, value)
+        elif lod > 0.55:
             self._paint_pins(painter, t, value)
         if lod > 0.2:
             painter.setPen(pen(alpha(t.ink, 60), 0.8))
@@ -729,9 +744,13 @@ class SiliconItem(CellItem):
     def _paint_marks(self, painter: QPainter, t: th.Theme) -> None:
         """Transistor seleccionado o bajo el ratón."""
         for index, color, w in (
-            (self.board.hover_transistor if self.board.hover_item is self else None, t.halo, 2.0),
             (
-                self.board.selected_transistor if self.board.selected_item is self else None,
+                self.board.hover_transistor if self.linked(self.board.hover_item) else None,
+                t.halo,
+                2.0,
+            ),
+            (
+                self.board.selected_transistor if self.linked(self.board.selected_item) else None,
                 t.select,
                 2.6,
             ),
@@ -762,6 +781,39 @@ class SiliconItem(CellItem):
             painter.setPen(pen(t.logic(value(p.node)).lighter(130), 1))
             painter.drawText(box, Qt.AlignmentFlag.AlignCenter, text)
             painter.restore()
+
+    def _paint_pins_outside(
+        self, painter: QPainter, t: th.Theme, value: Callable[[int], Logic]
+    ) -> None:
+        """Puertos encima de la celda, en orden de izquierda a derecha, sin taparla."""
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        fm = QFontMetricsF(LABEL_FONT)
+        next_x = -1e9
+        for p in sorted(self.lay.pins, key=lambda q: q.x):
+            v = value(p.node)
+            text = f"{p.text} = {logic_text(v)}"
+            w = fm.horizontalAdvance(text) + 10
+            x = max(p.x - w / 2, next_x + 4)
+            next_x = x + w
+            box = QRectF(x, -PIN_RISE - 18, w, 18)
+            color = t.logic(v)
+            painter.setPen(pen(alpha(color, 200), 1.0, Qt.PenStyle.DashLine))
+            painter.drawLine(QPointF(box.center().x(), box.bottom()), QPointF(p.x, self._y(p.y)))
+            painter.setPen(pen(color, 1.2))
+            painter.setBrush(QBrush(alpha(t.surface, 235)))
+            painter.drawRoundedRect(box, 4, 4)
+            painter.setFont(LABEL_FONT)
+            painter.setPen(pen(color, 1))
+            painter.drawText(box, Qt.AlignmentFlag.AlignCenter, text)
+
+    def boundingRect(self) -> QRectF:  # noqa: N802
+        top = -PIN_RISE - 22 if self.pins_outside else 0.0
+        return QRectF(
+            -40 if self.pins_outside else 0,
+            top,
+            self.lay.width + (80 if self.pins_outside else 0),
+            self.lay.height - top,
+        )
 
     def hit(self, pos: QPointF) -> Hit | None:
         x, y = pos.x(), self._y(pos.y())
@@ -847,6 +899,117 @@ class FrameItem(QGraphicsItem):
         painter.setPen(pen(t.text, 1))
         painter.drawText(QPointF(6, fm.ascent() + 3), text)
         painter.restore()
+
+
+# ------------------------------------------------------------ plano del chip
+CHIP_W = 1600.0
+CHIP_H = 1100.0
+BLOCK_GAP = 14.0
+ROW_PITCH = 9.0
+"""Separación de las líneas tenues que sugieren filas de celdas dentro de un bloque."""
+
+
+class BlockItem(QGraphicsItem):
+    """Un bloque en el plano del chip: área proporcional a sus transistores."""
+
+    def __init__(self, tile: floorplan.Tile, rect: QRectF, subtitle: str, board: CircuitScene):
+        super().__init__()
+        self.tile = tile
+        self.rect = rect
+        self.subtitle = subtitle
+        self.board = board
+        self.heat = 0.0
+        self.setAcceptHoverEvents(True)
+        self.setToolTip(f"{tile.title}\n{subtitle}\nDoble clic para entrar")
+
+    def boundingRect(self) -> QRectF:  # noqa: N802 - API de Qt
+        return self.rect.adjusted(-4, -4, 4, 4)
+
+    def hoverEnterEvent(self, event: QGraphicsSceneHoverEvent) -> None:  # noqa: N802
+        self.board.hover_block = self
+        self.update()
+        self.board.hovered.emit(BlockHit(self))
+
+    def hoverLeaveEvent(self, event: QGraphicsSceneHoverEvent) -> None:  # noqa: N802
+        if self.board.hover_block is self:
+            self.board.hover_block = None
+        self.update()
+        self.board.hovered.emit(None)
+
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionGraphicsItem,
+        widget: QWidget | None = None,
+    ) -> None:
+        t = th.current()
+        lod = max(option.levelOfDetailFromTransform(painter.worldTransform()), 1e-4)
+        r = self.rect
+        base = QColor(self.tile.color)
+        hover = self.board.hover_block is self
+        selected = self.board.selected_block is self
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(
+            QBrush(alpha(base, (110 if hover else 78) if t.dark else (95 if hover else 62)))
+        )
+        painter.drawRect(r)
+        # Textura de filas de celdas estándar: líneas finas y tenues, sin dibujar celdas.
+        if r.height() * lod > 30:
+            painter.setPen(pen(alpha(base, 60 if t.dark else 70), 1.0 / lod))
+            y = r.top() + ROW_PITCH
+            while y < r.bottom() - 1:
+                painter.drawLine(QPointF(r.left() + 3, y), QPointF(r.right() - 3, y))
+                y += ROW_PITCH
+        if self.board.show_heat and self.heat > 0:
+            h = self.heat
+            color = QColor.fromHsvF(max(0.0, 0.13 - 0.13 * h), 0.95, 1.0)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(alpha(color, int(40 + 170 * h * h))))
+            painter.drawRect(r)
+        border = pen(t.select if selected else base, (3.0 if selected or hover else 1.6) / lod)
+        painter.setPen(border)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(r)
+        # Nombre a tamaño de pantalla constante, recortado al ancho del bloque.
+        width = r.width() * lod
+        if width < 40 or r.height() * lod < 22:
+            return
+        painter.save()
+        painter.translate(r.left(), r.top())
+        painter.scale(1 / lod, 1 / lod)
+        title_font = _font(10.5, bold=True)
+        sub_font = _font(8.5)
+        fm, fs = QFontMetricsF(title_font), QFontMetricsF(sub_font)
+        pad = 8.0
+        title = fm.elidedText(self.tile.title, Qt.TextElideMode.ElideRight, width - 2 * pad)
+        lines = [(title, title_font, fm, t.text)]
+        if r.height() * lod > fm.height() + fs.height() + 2 * pad:
+            sub = fs.elidedText(self.subtitle, Qt.TextElideMode.ElideRight, width - 2 * pad)
+            lines.append((sub, sub_font, fs, t.muted))
+        box_w = max(m.horizontalAdvance(text) for text, _, m, _ in lines) + 2 * pad
+        box_h = sum(m.height() for _, _, m, _ in lines) + pad
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(alpha(t.surface, 225)))
+        painter.drawRoundedRect(QRectF(4, 4, box_w, box_h), 5, 5)
+        y = 4 + pad / 2
+        for text, font, m, ink in lines:
+            painter.setFont(font)
+            painter.setPen(pen(ink, 1))
+            painter.drawText(QPointF(4 + pad, y + m.ascent()), text)
+            y += m.height()
+        painter.restore()
+
+
+@dataclass(frozen=True)
+class BlockHit:
+    """Un bloque del plano bajo el ratón."""
+
+    item: BlockItem
+
+    @property
+    def key(self) -> str:
+        return self.item.tile.key
 
 
 # ------------------------------------------------------------------- escena
@@ -1085,6 +1248,11 @@ class CircuitScene(QGraphicsScene):
         self.hover_item: CellItem | None = None
         self.hover_transistor: int | None = None
         self.hover_element: int | None = None
+        self.hover_block: BlockItem | None = None
+        self.selected_block: BlockItem | None = None
+        self.blocks: list[BlockItem] = []
+        self.pair = False
+        """True si se dibuja una celda dos veces: su esquema y su silicio, lado a lado."""
         self.selected_item: CellItem | None = None
         self.selected_transistor: int | None = None
         self.clickable_nodes: set[int] = set()
@@ -1110,7 +1278,7 @@ class CircuitScene(QGraphicsScene):
     def apply_theme(self) -> None:
         t = th.current()
         bg = silicon_background(t) if self.mode == "silicon" else t.window
-        if self.mode == "silicon" and len(self.cells) > 1:
+        if (self.mode == "silicon" and len(self.cells) > 1) or self.mode == "floorplan":
             bg = "#08090b" if t.dark else "#d9dce3"
         self.setBackgroundBrush(QBrush(QColor(bg)))
         self.update()
@@ -1126,6 +1294,9 @@ class CircuitScene(QGraphicsScene):
         self.flows = {}
         self.hover_node = self.hover_item = self.hover_transistor = None
         self.hover_element = None
+        self.hover_block = self.selected_block = None
+        self.blocks = []
+        self.pair = False
         self.selected_item = self.selected_transistor = None
         self.values = values
         self.clickable_nodes = set(clickable)
@@ -1163,6 +1334,67 @@ class CircuitScene(QGraphicsScene):
         self.cells = list(items)
         self._index()
 
+    def show_pair(
+        self,
+        binding: Binding,
+        title: str,
+        values: ValueReader,
+        *,
+        clickable: set[int] | None = None,
+    ) -> None:
+        """Una celda dos veces, lado a lado: su esquema y su silicio, enlazados.
+
+        Pasar el ratón por un transistor lo resalta en los dos dibujos.
+        """
+        self._reset(values, clickable or set(), "silicon")
+        self.pair = True
+        schematic = SchematicItem(binding, title, self)
+        chip = SiliconItem(binding, title, self)
+        chip.pins_outside = True
+        scale = min(2.4, max(0.6, schematic.geo.height * 0.82 / max(1.0, chip.lay.height)))
+        chip.setScale(scale)
+        schematic.setPos(0, 0)
+        chip.setPos(
+            schematic.geo.width + PAIR_GAP,
+            (schematic.geo.height - chip.lay.height * scale) / 2,
+        )
+        for item in (schematic, chip):
+            self.addItem(item)
+        self.cells = [schematic, chip]
+        self._index()
+
+    def show_floorplan(
+        self,
+        tiles: Sequence[floorplan.Tile],
+        subtitles: Sequence[str],
+        values: ValueReader,
+        die: tuple[str, str],
+    ) -> None:
+        """Dibuja el plano: un rectángulo por bloque, de área proporcional a su peso."""
+        self._reset(values, set(), "floorplan")
+        for tile, sub, (x, y, w, h) in zip(
+            tiles, subtitles, floorplan.plan(tiles, CHIP_W, CHIP_H, BLOCK_GAP), strict=True
+        ):
+            item = BlockItem(tile, QRectF(x, y, w, h), sub, self)
+            self.addItem(item)
+            self.blocks.append(item)
+        frame = QRectF(0, 0, CHIP_W, CHIP_H).adjusted(-40, -40, 40, 40)
+        self.addItem(FrameItem(frame, die[0], die[1], die=True))
+        self._index()
+
+    def select_block(self, item: BlockItem | None) -> None:
+        old, self.selected_block = self.selected_block, item
+        for i in {old, item}:
+            if i is not None:
+                i.update()
+
+    def set_block_heat(self, heat_of: Callable[[BlockItem], float] | None) -> None:
+        """Actividad (0–1) de cada bloque del plano; None la apaga."""
+        self.show_heat = heat_of is not None
+        for item in self.blocks:
+            item.heat = heat_of(item) if heat_of is not None else 0.0
+            item.update()
+
     def show_gates(
         self,
         cells: Sequence[tuple[Binding, str]],
@@ -1188,36 +1420,22 @@ class CircuitScene(QGraphicsScene):
 
     def show_silicon(
         self,
-        groups: Sequence[tuple[str, Sequence[tuple[Binding, str]]]],
+        cells: Sequence[tuple[Binding, str]],
         values: ValueReader,
         *,
         clickable: set[int] | None = None,
-        die: tuple[str, str] | None = None,
     ) -> None:
-        """Dibuja las celdas como layout, en filas de celdas estándar.
+        """Dibuja unas pocas celdas como layout, en filas de celdas estándar.
 
-        Args:
-            groups: (nombre del bloque, celdas). Con un solo grupo sin nombre se dibujan
-                solo las filas; con varios, cada bloque en su recuadro (plano del chip).
-            die: (título, subtítulo) del recuadro del chip, si se quiere.
+        Un bloque o el chip entero no se dibujan así sino con su plano
+        (:meth:`show_floorplan`); una sola celda, junto a su esquema (:meth:`show_pair`).
         """
         self._reset(values, clickable or set(), "silicon")
-        built = [
-            (name, [SiliconItem(b, title, self) for b, title in cells]) for name, cells in groups
-        ]
-        framed = len(built) > 1 or (bool(built) and built[0][0] != "")
-        for (name, items), rect in zip(
-            built, _floorplan(built, GAP_LABEL if framed else 0.0), strict=True
-        ):
-            for item in items:
-                self.addItem(item)
-            if framed:
-                n_t = sum(len(i.binding.transistors) for i in items)
-                self.addItem(FrameItem(rect, name, f"{len(items)} celdas · {n_t} T"))
-            self.cells.extend(items)
-        if die is not None and self.cells:
-            r = self.itemsBoundingRect().adjusted(-60, -60, 60, 60)
-            self.addItem(FrameItem(r, die[0], die[1], die=True))
+        items = [SiliconItem(b, title, self) for b, title in cells]
+        _rows(items)
+        for item in items:
+            self.addItem(item)
+        self.cells = list(items)
         self._index()
 
     @property
@@ -1263,6 +1481,8 @@ class CircuitScene(QGraphicsScene):
             if n is not None:
                 touched |= set(self._by_node.get(n, []))
         touched |= {i for i in (self.hover_item, item) if i is not None}
+        if self.pair:
+            touched |= set(self.cells)
         self.hover_node, self.hover_item, self.hover_transistor = node, item, transistor
         self.hover_element = element
         for i in touched:
@@ -1272,7 +1492,7 @@ class CircuitScene(QGraphicsScene):
     def select(self, item: CellItem | None, transistor: int | None) -> None:
         old = self.selected_item
         self.selected_item, self.selected_transistor = item, transistor
-        for i in {old, item}:
+        for i in {old, item} | (set(self.cells) if self.pair else set()):
             if i is not None:
                 i.update()
 
@@ -1324,47 +1544,6 @@ def _rows(items: Sequence[SiliconItem], target: float | None = None) -> tuple[fl
         x += item.lay.width
         width = max(width, x)
     return width, (row + 1) * h
-
-
-def _floorplan(blocks: Sequence[tuple[str, Sequence[SiliconItem]]], gap: float) -> list[QRectF]:
-    """Coloca cada bloque en filas de celdas y arma el plano del chip; devuelve el
-    rectángulo de cada bloque.
-
-    Los bloques se acomodan en franjas horizontales del ancho del chip; dentro de una
-    franja se les da un número parecido de filas de celdas para que sus alturas
-    coincidan y el chip quede compacto.
-    """
-    if not blocks:
-        return []
-    h = max((i.lay.height for _, items in blocks for i in items), default=1.0)
-    totals = [sum(i.lay.width for i in items) for _, items in blocks]
-    widest = [max((i.lay.width for i in items), default=0.0) for _, items in blocks]
-    if len(blocks) == 1:
-        w, bh = _rows(blocks[0][1])
-        return [QRectF(0, 0, w, bh)]
-    die_w = math.sqrt(sum(t * h for t in totals) * 1.25 * 1.35)
-    remaining = sorted(range(len(blocks)), key=lambda k: -totals[k])
-    out: dict[int, QRectF] = {}
-    y = 0.0
-    while remaining:
-        first = remaining[0]
-        rows = max(1, round(math.sqrt(totals[first] / (1.5 * h))), math.ceil(totals[first] / die_w))
-        x = 0.0
-        shelf_h = 0.0
-        for k in list(remaining):
-            r = max(1, min(rows, math.ceil(totals[k] / max(widest[k], 1.0))))
-            w = max(widest[k], totals[k] / r) * 1.03
-            if x > 0 and x + w > die_w:
-                continue
-            bw, bh = _rows(blocks[k][1], w)
-            for item in blocks[k][1]:
-                item.setPos(item.pos() + QPointF(x, y))
-            out[k] = QRectF(x, y, bw, bh)
-            x += bw + gap
-            shelf_h = max(shelf_h, bh)
-            remaining.remove(k)
-        y += shelf_h + gap
-    return [out[k] for k in range(len(blocks))]
 
 
 # ------------------------------------------------------------------- vista
@@ -1504,19 +1683,23 @@ class CanvasView(QGraphicsView):
         if event.button() == Qt.MouseButton.LeftButton:
             self.double_clicked.emit(self.hit_at(event.position()))
 
-    def hit_at(self, pos: QPointF) -> Hit | None:
+    def hit_at(self, pos: QPointF) -> Hit | BlockHit | None:
         scene_pos = self.mapToScene(pos.toPoint())
         for item in self.scene().items(scene_pos):
             if isinstance(item, CellItem):
                 return item.hit(item.mapFromScene(scene_pos))
+            if isinstance(item, BlockItem) and item.rect.contains(scene_pos):
+                return BlockHit(item)
         return None
 
-    def _clickable(self, hit: Hit | None) -> bool:
+    def _clickable(self, hit: Hit | BlockHit | None) -> bool:
         if hit is None:
             return False
+        if isinstance(hit, BlockHit):
+            return True
         if hit.kind in ("transistor", "input"):
             return True
-        return hit.kind == "cell" and len(self.board.cells) > 1
+        return hit.kind == "cell" and len(self.board.cells) > 1 and not self.board.pair
 
     def _on_hover(self, hit: Hit | None) -> None:
         if self._press is None:

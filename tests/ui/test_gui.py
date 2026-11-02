@@ -236,24 +236,34 @@ def test_clic_en_transistor_y_esc(ventana: object, qapp: object) -> None:
 
 
 def test_vista_de_silicio_y_corte(ventana: object, qapp: object) -> None:
-    from transim.ui.gui.canvas import SiliconItem
+    from transim.ui.gui.canvas import Hit, SiliconItem
 
     tr = ventana.transistors  # type: ignore[attr-defined]
     ventana.tabs.setCurrentWidget(ventana.transistors)  # type: ignore[attr-defined]
     tr.library.select("NOR2")
     tr.mode.set_value("silicon", emit=True)
     qapp.processEvents()  # type: ignore[attr-defined]
-    item = tr.scene.cells[0]
+    # Una celda en silicio se ve junto a su esquema.
+    assert tr.scene.pair
+    esquema, item = tr.scene.cells
     assert isinstance(item, SiliconItem)
     canal = item.lay.layer("channel")[0]
     centro = item.mapToScene(item.transistor_rect(canal.transistor).center())
     clic_en(tr.view, centro)
     assert tr.scene.selected_transistor == canal.transistor
+    assert tr.inspector.section.device is not None
+    # Pasar el ratón por un transistor del esquema lo resalta también en el silicio.
+    d = esquema.geo.devices[0]
+    hit = Hit(esquema, "transistor", transistor=d.index)
+    tr.scene.set_hover(hit)
+    assert item.linked(tr.scene.hover_item)
+    assert tr.scene.hover_transistor == d.index
+    tr.scene.set_hover(None)
     tr.mode.set_value("schematic", emit=True)
 
 
 def test_ultima_operacion_chip_bloque_y_celda(ventana: object, qapp: object) -> None:
-    from transim.ui.gui.canvas import SchematicItem, SiliconItem
+    from transim.ui.gui.canvas import SchematicItem
 
     calcular(qapp, ventana)
     tr = ventana.transistors  # type: ignore[attr-defined]
@@ -261,9 +271,16 @@ def test_ultima_operacion_chip_bloque_y_celda(ventana: object, qapp: object) -> 
     tr.reveal("unit")
     netlist = tr.unit.netlist
     assert tr._target == ("unit", "")
-    assert all(isinstance(i, SiliconItem) for i in tr.scene.cells)
-    assert len(tr.scene.cells) == len(netlist.leaf_instances())
+    # El chip es un plano: un rectángulo por bloque, sin dibujar las 1411 celdas.
+    assert not tr.scene.cells
+    bloques = [i for i in netlist.top_instances() if not i.is_leaf]
+    assert len(tr.scene.blocks) == len(bloques) + 1  # más las celdas sueltas
     assert not tr.mode.buttons["schematic"].isEnabled()  # el chip entero no tiene esquema
+    # Doble clic en un bloque lo abre.
+    align = next(b for b in tr.scene.blocks if b.tile.key == "align")
+    clic_en(tr.view, align.rect.center(), doble=True)
+    assert tr._target == ("instance", "align")
+    tr.reveal("unit")
 
     tr.reveal("unpack_a")
     tr.mode.set_value("schematic", emit=True)
@@ -289,7 +306,15 @@ def test_bloque_grande_solo_en_silicio(ventana: object, qapp: object) -> None:
     tr.mode.set_value("schematic", emit=True)
     tr.reveal("round")  # 3812 transistores
     assert tr.silicon
-    assert "se muestra el silicio" in tr.info.text()
+    assert "se muestra su plano" in tr.info.text()
+    # Su plano: los sub-bloques uno por uno y las celdas sueltas agrupadas por tipo.
+    assert sum(b.tile.weight for b in tr.scene.blocks) == len(tr._instances["round"].transistors)
+    grupos = [b for b in tr.scene.blocks if " × " in b.tile.title]
+    assert grupos
+    primero = grupos[0]
+    clic_en(tr.view, primero.rect.center(), doble=True)
+    assert tr._target == ("instance", primero.tile.key)
+    assert tr._instances[primero.tile.key].is_leaf
 
 
 def test_buscador_y_mapa_de_actividad(ventana: object, qapp: object) -> None:
@@ -719,3 +744,30 @@ def test_opciones_en_el_menu_ver(ventana: object) -> None:
     assert textos[:4] == ["Camino activo", "Conmutaciones", "Mapa de actividad", "Color por valor"]
     assert any(t.startswith("Exportar imagen") for t in textos)
     assert not tr.paths.isChecked()  # sin recuadros verdes salvo que se pidan
+
+
+# -------------------------------------------------------------------- plano
+def test_plano_inspector_y_actividad(ventana: object, qapp: object) -> None:
+    from transim.ui.gui.canvas import BlockHit
+
+    ventana.operation.a.set_text("9.25")  # type: ignore[attr-defined]
+    calcular(qapp, ventana)  # distinta de la anterior: hay conmutaciones
+    tr = ventana.transistors  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(tr)  # type: ignore[attr-defined]
+    tr.reveal("unit")
+    qapp.processEvents()  # type: ignore[attr-defined]
+    total = len(tr.unit.netlist.transistors)
+    assert sum(b.tile.weight for b in tr.scene.blocks) == total
+    # El área sigue a los transistores: el bloque más grande tiene el rectángulo más grande.
+    grande = max(tr.scene.blocks, key=lambda b: b.tile.weight)
+    area = max(tr.scene.blocks, key=lambda b: b.rect.width() * b.rect.height())
+    assert grande is area
+    clic_en(tr.view, grande.rect.center())
+    assert tr.scene.selected_block is grande
+    assert "transistores" in tr.inspector.body.text()
+    tr._hover(BlockHit(grande))
+    assert grande.tile.title in tr.inspector.title.text()
+    tr.heat.setChecked(True)
+    assert max(b.heat for b in tr.scene.blocks) == pytest.approx(1.0)
+    tr.heat.setChecked(False)
+    assert not tr.layer_row.isVisible()  # las capas son de la vista de una celda
