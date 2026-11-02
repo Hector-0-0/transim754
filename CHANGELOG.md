@@ -6,6 +6,14 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 ## [Sin publicar]
 
 ### Agregado
+- **Rejilla de bits** de un bloque (ADR-0018): en la vista Compuertas, cada celda en la
+  columna de su bit y la fila de su nivel lógico, calculadas del netlist; la cadena de
+  acarreo del sumador se ve como una escalera y los niveles del desplazador como filas
+  (`gui/bitgrid.py`).
+- **Propagación con retardo unitario por celda** (ADR-0018): la operación se reproduce por
+  rondas con las tablas de verdad de las celdas, se verifica nodo por nodo contra el
+  estado del motor y se anima en la rejilla (⏵, ◀ ▶, deslizador). Recorrido tiene «Ver el
+  acarreo» / «Ver la propagación» (`gui/propagation.py`).
 - **Plano del chip** (ADR-0017): en Silicio, la unidad y cada bloque se ven como regiones
   de área proporcional a sus transistores, con el nombre y el color de su etapa; las
   celdas sueltas de un bloque se agrupan por tipo. Clic muestra sus datos, doble clic

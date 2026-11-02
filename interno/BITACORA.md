@@ -4,6 +4,24 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-11-02 (noche) · Rejilla de bits y propagación del acarreo
+
+**Hecho**
+- PR #54 (plano del chip) integrado; ADR-0018 aprobado.
+- Rejilla de bits de un bloque: columna = bit del puerto más cercano (sin contar rieles
+  ni señales de control de mucho fan-out), fila = nivel lógico (Kahn). En `ADDSUB28`
+  el FA del bit *i* queda en la columna *i* y el nivel *i* + 1.
+- Propagación con retardo unitario por celda: se guarda el estado anterior en
+  `Calculation`, se reproduce por rondas con las tablas de verdad de `cached` y se
+  compara nodo por nodo con el motor. Válida en todos los ejemplos de las cuatro
+  operaciones y los dos formatos; nunca supera el camino crítico. 5–100 ms.
+- Barra «Propagación» en la rejilla y «Ver el acarreo» en Recorrido.
+
+**Siguiente**
+- Textos propios del Recorrido para multiplicación y división.
+
+---
+
 ## 2026-11-02 (tarde) · Plano del chip y celda junto a su silicio
 
 **Hecho**

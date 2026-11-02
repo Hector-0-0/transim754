@@ -116,6 +116,11 @@ panel de la izquierda se abre con ☰ o Ctrl+F (buscar).</li>
 NAND, NOR o compuerta compleja), deducida de sus transistores. El panel <b>Qué está
 pasando</b> escribe cada fórmula con sus valores. Doble clic en una compuerta para ver
 sus transistores.</li>
+<li>En un <b>bloque</b>, Compuertas muestra su <b>rejilla de bits</b>: cada celda en la
+columna de su bit y la fila de su nivel lógico. <b>Propagación</b> (⏵, ◀ ▶ y el
+deslizador) reproduce la operación con un retardo por celda y resalta lo que cambia en
+cada instante: se ve el acarreo avanzar bit a bit. Desde Recorrido, «Ver el acarreo» la
+abre. Es un modelo aparte del motor (ADR-0018).</li>
 <li><b>Transistores</b> dibuja el circuito CMOS: la red pull-up de pMOS (fondo rojizo)
 lleva la salida a 1 y la pull-down de nMOS (fondo azulado) a 0. Canal continuo:
 conduce; cortado: no conduce. <b>Paso a paso</b> recorre las etapas en orden.</li>
@@ -253,6 +258,7 @@ class MainWindow(QMainWindow):
         self.operation.calculated.connect(self.transistors.show_calculation)
         self.operation.open_stage.connect(self._open_stage)
         self.walkthrough.open_block.connect(self._open_block)
+        self.walkthrough.open_propagation.connect(self._open_propagation)
         self.walkthrough.go_operation.connect(self._go_operation)
         self.transistors.go_operation.connect(self._go_operation)
         for tab in (self.operation, self.walkthrough, self.transistors, self.program):
@@ -323,6 +329,10 @@ class MainWindow(QMainWindow):
     def _open_block(self, path: str) -> None:
         self.tabs.setCurrentWidget(self.transistors)
         self.transistors.reveal(path)
+
+    def _open_propagation(self, path: str) -> None:
+        self.tabs.setCurrentWidget(self.transistors)
+        self.transistors.show_propagation(path)
 
     def _open_stage(self, key: str) -> None:
         self.tabs.setCurrentWidget(self.transistors)

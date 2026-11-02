@@ -418,9 +418,9 @@ def test_menu_contextual_del_dibujo(ventana: object, qapp: object) -> None:
     calcular(qapp, ventana)
     tr = ventana.transistors  # type: ignore[attr-defined]
     tr.reveal("unpack_a")
-    item = tr.scene.cells[0]
-    esquina = item.mapToScene(QPointF(item.geo.width - 6, item.geo.height - 6))
-    textos = [a.text() for a in tr.context_menu(tr.view.mapFromScene(esquina)).actions()]
+    item = tr.scene.cells[0]  # un recuadro de la rejilla de bits
+    centro = item.mapToScene(item.boundingRect().center())
+    textos = [a.text() for a in tr.context_menu(tr.view.mapFromScene(centro)).actions()]
     assert "Ajustar a la vista" in textos
     assert f"Abrir {item.binding.path}" in textos
     assert "Subir un nivel (Retroceso)" in textos
@@ -771,3 +771,60 @@ def test_plano_inspector_y_actividad(ventana: object, qapp: object) -> None:
     assert max(b.heat for b in tr.scene.blocks) == pytest.approx(1.0)
     tr.heat.setChecked(False)
     assert not tr.layer_row.isVisible()  # las capas son de la vista de una celda
+
+
+# ---------------------------------------------------------- rejilla y propagación
+def test_rejilla_de_un_bloque_y_propagacion(ventana: object, qapp: object) -> None:
+    from transim.ui.gui.canvas import TileItem
+
+    ventana.operation.a.set_text("6.5")  # type: ignore[attr-defined]
+    calcular(qapp, ventana)
+    tr = ventana.transistors  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(tr)  # type: ignore[attr-defined]
+    tr.reveal("mant_addsub")
+    tr.mode.set_value("gates", emit=True)
+    qapp.processEvents()  # type: ignore[attr-defined]
+    assert all(isinstance(i, TileItem) for i in tr.scene.cells)
+    assert not tr.time_row.isHidden()
+    r = tr.replay
+    assert r is not None
+    assert r.valid
+    # Al abrir se ve el estado final, que es el del motor.
+    assert tr.time_t == r.length
+    # En el instante 0 nada del bloque cambió todavía; luego algo cambia.
+    tr.set_time(0)
+    assert not tr.scene.flash_cells
+    paths = frozenset(c.binding.path for c in tr.scene.cells)
+    ultimo = r.last_change(paths)
+    assert ultimo > 0
+    tr.set_time(ultimo)
+    assert tr.scene.flash_cells & paths
+    assert f"t = {ultimo}" in tr.time_text.text()
+    # Reproducir avanza solo hasta el final.
+    tr.toggle_time()
+    for _ in range(r.length + 1):
+        tr._time_tick()
+    assert tr.time_t == r.length
+    # Doble clic en un recuadro abre esa celda.
+    item = tr.scene.cells[0]
+    clic_en(tr.view, item.mapToScene(item.boundingRect().center()), doble=True)
+    assert tr._target == ("instance", item.binding.path)
+    assert tr.time_row.isHidden()
+
+
+def test_recorrido_abre_la_propagacion(ventana: object, qapp: object) -> None:
+    ventana.operation.a.set_text("12.5")  # type: ignore[attr-defined]
+    calcular(qapp, ventana)
+    rec = ventana.walkthrough  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(rec)  # type: ignore[attr-defined]
+    rec.go(4)  # sumar mantisas
+    assert rec.p_wave.text() == "Ver el acarreo ▸"
+    rec.p_wave.click()
+    tr = ventana.transistors  # type: ignore[attr-defined]
+    assert ventana.tabs.currentWidget() is tr  # type: ignore[attr-defined]
+    assert tr._target == ("instance", "mant_addsub")
+    assert tr.gates
+    assert tr._time_timer.isActive()
+    assert tr.time_t == 0
+    tr.toggle_time()  # pausa
+    assert not tr._time_timer.isActive()

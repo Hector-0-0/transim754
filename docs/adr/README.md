@@ -24,6 +24,7 @@ anterior se conserva y se marca como "Reemplazada por ADR-XXXX".
 | [0015](0015-vistas-de-transistores.md) | Vistas de transistores: esquema, silicio y corte | Aceptada (en parte reemplazada por 0017) |
 | [0016](0016-vista-de-compuertas.md) | Vista de compuertas deducida de las etapas CMOS | Aceptada |
 | [0017](0017-plano-del-chip.md) | Plano del chip proporcional y celda junto a su silicio | Aceptada |
+| [0018](0018-rejilla-de-bits-y-propagacion.md) | Rejilla de bits y propagación con retardo unitario por celda | Aceptada |
 
 ## Referencia
 

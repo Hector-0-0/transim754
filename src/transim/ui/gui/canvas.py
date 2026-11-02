@@ -1012,6 +1012,123 @@ class BlockHit:
         return self.item.tile.key
 
 
+# ------------------------------------------------------------ rejilla de bits
+TILE_W = 46.0
+TILE_H = 24.0
+TILE_GAP = 6.0
+GRID_LEFT = 74.0
+GRID_TOP = 58.0
+MARK_W = 8.0
+"""Ancho reservado a la marca de la segunda salida de un recuadro de la rejilla."""
+LABEL_EVERY_COLUMN = 40
+"""Con hasta estas columnas se rotula cada bit; con más, uno de cada cuatro."""
+
+
+class TileItem(CellItem):
+    """Una celda en la rejilla de bits: su tipo, pintado con el valor de su salida."""
+
+    def __init__(self, binding: Binding, title: str, board: CircuitScene) -> None:
+        super().__init__(binding, title, board)
+        self.outputs = list(binding.circuit.outputs.values())
+
+    def boundingRect(self) -> QRectF:  # noqa: N802 - API de Qt
+        return QRectF(-3, -3, TILE_W + 6, TILE_H + 6)
+
+    def transistor_rect(self, index: int) -> QRectF:
+        return QRectF(0, 0, TILE_W, TILE_H)
+
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionGraphicsItem,
+        widget: QWidget | None = None,
+    ) -> None:
+        t = th.current()
+        if self.board.values is None:
+            return
+        lod = option.levelOfDetailFromTransform(painter.worldTransform())
+        value = self.value_fn()
+        main = value(self.outputs[0]) if self.outputs else Logic.X
+        rect = QRectF(0, 0, TILE_W, TILE_H)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, lod > 0.3)
+        color = t.logic(main)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(alpha(color, 200 if main is Logic.ONE else 70)))
+        painter.drawRoundedRect(rect, 4, 4)
+        flash = self.binding.path in self.board.flash_cells
+        hover = self.board.hover_item is self
+        selected = self.board.selected_item is self
+        if flash:
+            painter.setPen(pen(t.halo, 3.0))
+        elif selected or hover:
+            painter.setPen(pen(t.select, 2.2))
+        else:
+            painter.setPen(pen(alpha(t.ink, 90), 0.8))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(rect, 4, 4)
+        # Segunda salida (por ejemplo, el acarreo de un FA): una marca a la derecha.
+        for k, node in enumerate(self.outputs[1:3]):
+            v = value(node)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(t.logic(v)))
+            painter.drawRect(QRectF(TILE_W - 7, 3 + k * 9, 4, 7))
+        if TILE_W * lod > 26:
+            painter.setFont(SMALL_FONT)
+            painter.setPen(pen(t.paper if main is Logic.ONE else t.text, 1))
+            painter.drawText(
+                rect.adjusted(2, 0, -MARK_W, 0),
+                Qt.AlignmentFlag.AlignCenter,
+                self.binding.circuit.name,
+            )
+        self._paint_heat(painter, rect)
+
+    def hit(self, pos: QPointF) -> Hit | None:
+        return Hit(self, "cell")
+
+
+class GridFrameItem(QGraphicsItem):
+    """Ejes de la rejilla: el número de bit arriba y el nivel lógico a la izquierda."""
+
+    def __init__(self, columns: int, row_y: Sequence[float], width: float, height: float):
+        super().__init__()
+        self.columns = columns
+        self.row_y = list(row_y)
+        self.width = width
+        self.height = height
+        self.setZValue(-1)
+
+    def boundingRect(self) -> QRectF:  # noqa: N802
+        return QRectF(0, 0, self.width, self.height)
+
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionGraphicsItem,
+        widget: QWidget | None = None,
+    ) -> None:
+        t = th.current()
+        painter.setPen(pen(t.frame, 1.2))
+        painter.setBrush(QBrush(QColor(t.paper)))
+        painter.drawRoundedRect(QRectF(0, 0, self.width, self.height), 10, 10)
+        painter.setFont(SMALL_FONT)
+        painter.setPen(pen(t.muted, 1))
+        step = 1 if self.columns <= LABEL_EVERY_COLUMN else 4
+        for col in range(0, self.columns, step):
+            x = GRID_LEFT + (self.columns - 1 - col) * (TILE_W + TILE_GAP)
+            painter.drawText(
+                QRectF(x, GRID_TOP - 20, TILE_W, 14), Qt.AlignmentFlag.AlignCenter, f"bit {col}"
+            )
+        for row, y in enumerate(self.row_y):
+            painter.drawText(
+                QRectF(6, y, GRID_LEFT - 12, TILE_H),
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
+                f"nivel {row}",
+            )
+        painter.setFont(TITLE_FONT)
+        painter.setPen(pen(t.ink, 1))
+        painter.drawText(QPointF(16, 24), "Rejilla de bits: columna = bit · fila = nivel lógico")
+
+
 # ------------------------------------------------------------------- escena
 # ---------------------------------------------------------------- compuertas
 def wire_pen(t: th.Theme, v: Logic) -> QPen:
@@ -1253,6 +1370,8 @@ class CircuitScene(QGraphicsScene):
         self.blocks: list[BlockItem] = []
         self.pair = False
         """True si se dibuja una celda dos veces: su esquema y su silicio, lado a lado."""
+        self.flash_cells: frozenset[str] = frozenset()
+        """Celdas de la rejilla que cambiaron en el instante mostrado de la propagación."""
         self.selected_item: CellItem | None = None
         self.selected_transistor: int | None = None
         self.clickable_nodes: set[int] = set()
@@ -1297,6 +1416,7 @@ class CircuitScene(QGraphicsScene):
         self.hover_block = self.selected_block = None
         self.blocks = []
         self.pair = False
+        self.flash_cells = frozenset()
         self.selected_item = self.selected_transistor = None
         self.values = values
         self.clickable_nodes = set(clickable)
@@ -1332,6 +1452,37 @@ class CircuitScene(QGraphicsScene):
             x += item.geo.width + 26
             row_h = max(row_h, item.geo.height)
         self.cells = list(items)
+        self._index()
+
+    def show_grid(
+        self,
+        slots: Sequence[tuple[Binding, int, int, int]],
+        columns: int,
+        values: ValueReader,
+    ) -> None:
+        """Dibuja la rejilla de bits de un bloque: (enlace, columna, fila, sub) por celda.
+
+        El bit 0 queda a la derecha, como al escribir un número.
+        """
+        self._reset(values, set(), "gates")
+        rows: dict[int, int] = {}
+        for _, _, row, sub in slots:
+            rows[row] = max(rows.get(row, 0), sub + 1)
+        row_y: list[float] = []
+        y = GRID_TOP
+        for row in range(max(rows, default=-1) + 1):
+            row_y.append(y)
+            y += rows.get(row, 1) * (TILE_H + 3) + TILE_GAP
+        width = GRID_LEFT + columns * (TILE_W + TILE_GAP) + 16
+        self.addItem(GridFrameItem(columns, row_y, width, y + 12))
+        items: list[CellItem] = []
+        for binding, col, row, sub in slots:
+            item = TileItem(binding, binding.path, self)
+            x = GRID_LEFT + (columns - 1 - col) * (TILE_W + TILE_GAP)
+            item.setPos(x, row_y[row] + sub * (TILE_H + 3))
+            self.addItem(item)
+            items.append(item)
+        self.cells = items
         self._index()
 
     def show_pair(
