@@ -22,6 +22,7 @@ anterior se conserva y se marca como "Reemplazada por ADR-XXXX".
 | [0013](0013-metricas.md) | Métricas de transistores, actividad y camino crítico | Aceptada |
 | [0014](0014-ciclos-de-reloj.md) | Ciclos de reloj estimados a partir del camino crítico | Aceptada |
 | [0015](0015-vistas-de-transistores.md) | Vistas de transistores: esquema, silicio y corte | Aceptada |
+| [0016](0016-vista-de-compuertas.md) | Vista de compuertas deducida de las etapas CMOS | Aceptada |
 
 ## Referencia
 

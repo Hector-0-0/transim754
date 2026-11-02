@@ -51,6 +51,7 @@ from transim.core.signals import Logic
 from transim.core.transistor import Conduction, TransistorType
 from transim.core.unit import HardwareUnit
 from transim.metrics.stages import GLUE, STAGE_NAMES
+from transim.ui.gui import gates as gl
 from transim.ui.gui import theme as th
 from transim.ui.gui.canvas import (
     LAYER_COLOR,
@@ -59,6 +60,7 @@ from transim.ui.gui.canvas import (
     CanvasView,
     CellItem,
     CircuitScene,
+    GateItem,
     Hit,
     SchematicItem,
     logic_text,
@@ -387,7 +389,7 @@ class Inspector(QFrame):
         self.open_button.hide()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
-        label = QLabel("INSPECTOR")
+        label = QLabel("QUÉ ESTÁ PASANDO")
         label.setObjectName("cardTitle")
         layout.addWidget(label)
         layout.addWidget(self.title)
@@ -452,8 +454,13 @@ class TransistorTab(QWidget):
         self.mode = Segmented(
             [
                 (
+                    "gates",
+                    "Compuertas",
+                    "Qué función lógica calcula cada etapa CMOS, con sus valores (Alt+C)",
+                ),
+                (
                     "schematic",
-                    "Esquema",
+                    "Transistores",
                     "Esquema eléctrico CMOS: pull-up de pMOS y pull-down de nMOS (Alt+E)",
                 ),
                 (
@@ -464,11 +471,11 @@ class TransistorTab(QWidget):
             ]
         )
         self.mode.changed.connect(self._mode_chosen)
-        self._preferred = "schematic"
-        self._schematic_tip = self.mode.buttons["schematic"].toolTip()
+        self._preferred = "gates"
+        self._tips = {k: self.mode.buttons[k].toolTip() for k in ("gates", "schematic")}
         self.paths = self._toggle(
             "Camino activo",
-            True,
+            False,
             "Fondo verde en los transistores que fijan el valor de cada salida",
         )
         self.toggles = self._toggle(
@@ -498,20 +505,35 @@ class TransistorTab(QWidget):
             "Ver todo el dibujo (Ctrl+0 o doble clic en el fondo)",
             lambda: self.view.fit(),
         )
-        export = self._tool(
-            "Exportar…", "Guardar el dibujo como imagen PNG (Ctrl+E)", self.export_dialog
+        self.view_menu = QMenu(self)
+        for action in (self.paths, self.toggles, self.heat, self.by_value):
+            self.view_menu.addAction(action)
+        self.view_menu.addSeparator()
+        export_action = QAction("Exportar imagen… (Ctrl+E)", self)
+        export_action.triggered.connect(self.export_dialog)
+        self.view_menu.addAction(export_action)
+        self.view_button = QToolButton()
+        self.view_button.setText("Ver ▾")
+        self.view_button.setToolTip("Opciones del dibujo: camino activo, conmutaciones, actividad")
+        self.view_button.setMenu(self.view_menu)
+        self.view_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.view_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.panel_button = QToolButton()
+        self.panel_button.setText("☰")
+        self.panel_button.setCheckable(True)
+        self.panel_button.setToolTip(
+            "Mostrar u ocultar la biblioteca y el árbol de la unidad (Ctrl+F para buscar)"
         )
+        self.panel_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.panel_button.clicked.connect(self._panel_clicked)
+        self._panel_choice: bool | None = None
         bar = QHBoxLayout()
         bar.setSpacing(6)
+        bar.addWidget(self.panel_button)
         bar.addWidget(self.mode)
         bar.addStretch(1)
-        for w in (zoom_out, self.zoom_label, zoom_in, fit, export):
+        for w in (self.view_button, zoom_out, self.zoom_label, zoom_in, fit):
             bar.addWidget(w)
-        options = QHBoxLayout()
-        options.setSpacing(14)
-        for box in (self.paths, self.toggles, self.heat, self.by_value):
-            options.addWidget(box)
-        options.addStretch(1)
         # Capas del silicio: solo se ven en esa vista; ocultar una deja ver las demás.
         self.layer_row = QWidget()
         lr = QHBoxLayout(self.layer_row)
@@ -569,7 +591,6 @@ class TransistorTab(QWidget):
         cl.setSpacing(6)
         cl.addWidget(self.breadcrumb)
         cl.addLayout(bar)
-        cl.addLayout(options)
         cl.addWidget(self.layer_row)
         cl.addWidget(self.step_row)
         cl.addWidget(self.info)
@@ -613,7 +634,10 @@ class TransistorTab(QWidget):
             ("Ctrl++", self.view.zoom_in),
             ("Ctrl+=", self.view.zoom_in),
             ("Ctrl+-", self.view.zoom_out),
+            ("Alt+C", lambda: self._set_mode("gates")),
             ("Alt+E", lambda: self._set_mode("schematic")),
+            ("Alt+T", lambda: self._set_mode("schematic")),
+            ("Ctrl+F", self.open_search),
             ("Alt+S", lambda: self._set_mode("silicon")),
         ):
             sc = QShortcut(QKeySequence(keys), self)
@@ -622,13 +646,14 @@ class TransistorTab(QWidget):
         self.library.select("INV")
 
     # ------------------------------------------------------------- controles
-    def _toggle(self, text: str, checked: bool, tip: str) -> QCheckBox:
-        box = QCheckBox(text)
-        box.setChecked(checked)
-        box.setToolTip(tip)
-        box.setCursor(Qt.CursorShape.PointingHandCursor)
-        box.toggled.connect(self._options_changed)
-        return box
+    def _toggle(self, text: str, checked: bool, tip: str) -> QAction:
+        action = QAction(text, self)
+        action.setCheckable(True)
+        action.setChecked(checked)
+        action.setToolTip(tip)
+        action.setStatusTip(tip)
+        action.toggled.connect(self._options_changed)
+        return action
 
     def _tool(self, text: str, tip: str, fn: object) -> QPushButton:
         b = QPushButton(text)
@@ -649,10 +674,11 @@ class TransistorTab(QWidget):
         Returns:
             True si se pasó a Silicio porque el esquema no está disponible.
         """
-        self.mode.set_option_enabled("schematic", allowed, self._schematic_tip if allowed else why)
+        for key in ("gates", "schematic"):
+            self.mode.set_option_enabled(key, allowed, self._tips[key] if allowed else why)
         wanted = self._preferred if allowed else "silicon"
         self.mode.set_value(wanted)
-        return not allowed and self._preferred == "schematic"
+        return not allowed and self._preferred != "silicon"
 
     def _set_mode(self, mode: str) -> None:
         if self.mode.buttons[mode].isEnabled():
@@ -661,6 +687,32 @@ class TransistorTab(QWidget):
     @property
     def silicon(self) -> bool:
         return self.mode.value() == "silicon"
+
+    @property
+    def gates(self) -> bool:
+        return self.mode.value() == "gates"
+
+    # ----------------------------------------------------------- panel izquierdo
+    def _panel_clicked(self, shown: bool) -> None:
+        self._panel_choice = shown
+        self._update_panel()
+
+    def _update_panel(self) -> None:
+        """El panel se ve en la biblioteca; con una operación, solo si se pidió."""
+        shown = self._panel_choice
+        if shown is None:
+            shown = self._target[0] == "library"
+        self.sources.setVisible(shown)
+        self.panel_button.setChecked(shown)
+
+    def open_search(self) -> None:
+        """Ctrl+F: muestra el panel y pone el foco en el buscador."""
+        self._panel_choice = True
+        self._update_panel()
+        if self.unit is not None:
+            self.sources.setCurrentIndex(1)
+            self.hierarchy.search.setFocus()
+            self.hierarchy.search.selectAll()
 
     def _options_changed(self) -> None:
         self.scene.show_paths = self.paths.isChecked()
@@ -672,7 +724,7 @@ class TransistorTab(QWidget):
 
     def _update_controls(self) -> None:
         op = self._target[0] != "library"
-        self.paths.setEnabled(not self.silicon)
+        self.paths.setEnabled(self.mode.value() == "schematic")
         self.toggles.setEnabled(op and not self.silicon)
         self.heat.setEnabled(op)
         self.by_value.setEnabled(self.silicon)
@@ -681,7 +733,7 @@ class TransistorTab(QWidget):
     def _steps_refresh(self) -> None:
         """Prepara los pasos de la celda dibujada (solo si es un esquema de una celda)."""
         cells = self.scene.cells
-        single = len(cells) == 1 and isinstance(cells[0], SchematicItem) and not self.silicon
+        single = len(cells) == 1 and isinstance(cells[0], SchematicItem | GateItem)
         self.steps = cell_steps(cells[0].binding.netlist) if single else []
         if self.step_pos >= len(self.steps):
             self.step_pos = -1
@@ -699,7 +751,8 @@ class TransistorTab(QWidget):
         if self.step_pos < 0:
             self.scene.step_filter = None
             self.step_text.setText(
-                f"{n} etapas en orden de dependencia. Use Siguiente para verlas de una en una."
+                f"{n} etapas en orden de dependencia. Siguiente las muestra de una en una, "
+                "con su cuenta."
             )
         else:
             done = self.steps[: self.step_pos + 1]
@@ -709,10 +762,21 @@ class TransistorTab(QWidget):
                 nodes.update(st.outputs)
             self.scene.step_filter = (transistors, frozenset(nodes))
             step = self.steps[self.step_pos]
-            value = cell.value_fn()(step.outputs[0])
+            gate = next(
+                (
+                    g
+                    for g in gl.cell_gates(cell.binding.netlist)
+                    if set(g.transistors) == set(step.transistors)
+                ),
+                None,
+            )
+            if gate is not None:
+                said = gl.explain(gate, cell.binding.netlist, cell.value_fn())
+            else:
+                said = f"{step.label} = {logic_text(cell.value_fn()(step.outputs[0]))}"
             self.step_text.setText(
-                f"Etapa {self.step_pos + 1} de {n}: {step.label} = {logic_text(value)}. "
-                "Valores de la simulación; el orden sigue la dependencia entre etapas."
+                f"<b>Etapa {self.step_pos + 1} de {n}</b>: {said}. Valores de la simulación; "
+                "el orden sigue la dependencia entre etapas."
             )
         self.step_back.setEnabled(self.step_pos >= 0)
         self.step_next.setEnabled(self.step_pos < n - 1)
@@ -767,13 +831,22 @@ class TransistorTab(QWidget):
             )
             parts.append(f"<span style='color:{t.on}; font-size:14px'>■</span> canal que conduce")
             text = " · ".join(parts) + ". Layout ilustrativo generado del netlist, no a escala."
+        elif self.gates:
+            text = (
+                f"<span style='color:{t.one}; font-size:14px'>━</span> 1 (cable grueso) · "
+                f"<span style='color:{t.zero}; font-size:14px'>─</span> 0 · "
+                f"<span style='color:{t.unknown}; font-size:14px'>┄</span> X · "
+                "Cada compuerta es una etapa CMOS de la celda; ¬ es la negación, · el AND y + "
+                "el OR. Doble clic en una compuerta para ver sus transistores."
+            )
         else:
             text = (
-                f"<span style='color:{t.one}; font-size:14px'>■</span> 1 · "
-                f"<span style='color:{t.zero}; font-size:14px'>■</span> 0 · "
-                f"<span style='color:{t.unknown}; font-size:14px'>■</span> X (sin valor) · "
-                "canal continuo: conduce; cortado: no conduce · fondo verde: camino que fija la "
-                "salida. Arrastre para moverse, rueda para el zoom, doble clic para entrar."
+                f"<span style='color:{t.one}; font-size:14px'>━</span> 1 · "
+                f"<span style='color:{t.zero}; font-size:14px'>─</span> 0 · "
+                f"<span style='color:{t.unknown}; font-size:14px'>┄</span> X · "
+                "fondo rojizo: red pull-up (pMOS, lleva la salida a 1) · fondo azulado: red "
+                "pull-down (nMOS, la lleva a 0) · canal continuo: conduce; cortado: no conduce. "
+                "Pase el ratón por un transistor para ver su nombre y su corte."
             )
         self.legend.setText(text)
 
@@ -799,6 +872,8 @@ class TransistorTab(QWidget):
         zoom = self.view.zoom
         if self.silicon:
             self.scene.show_silicon(groups or [("", cells)], values, clickable=clickable, die=die)  # type: ignore[arg-type]
+        elif self.gates:
+            self.scene.show_gates(cells, values, clickable=clickable)  # type: ignore[arg-type]
         else:
             self.scene.show_schematics(cells, values, clickable=clickable)  # type: ignore[arg-type]
         self.scene.show_paths = self.paths.isChecked()
@@ -810,6 +885,7 @@ class TransistorTab(QWidget):
         self._update_controls()
         self.step_pos = -1
         self._steps_refresh()
+        self._update_panel()
         if keep_view:
             self.view.resetTransform()
             self.view.scale(zoom, zoom)
@@ -1228,6 +1304,12 @@ class TransistorTab(QWidget):
             self.scene.select(hit.item, hit.transistor)
             self._inspect(hit)
             return
+        if hit.kind == "gate" and hit.element is not None:
+            first = gl.cell_gates(hit.binding.netlist)
+            gate = next(g for g in first if g.element == hit.element)
+            self.scene.select(hit.item, gate.transistors[0])
+            self._inspect(hit)
+            return
         if hit.kind == "cell" and len(self.scene.cells) > 1:
             self.scene.select(hit.item, None)
             self._inspect(hit)
@@ -1246,8 +1328,24 @@ class TransistorTab(QWidget):
             rect = hit.item.mapRectToScene(hit.item.transistor_rect(hit.transistor))
             self.view.focus_on(rect, 3.0)
             return
+        if hit.kind == "gate" and hit.element is not None and len(self.scene.cells) == 1:
+            self.show_gate_transistors(hit.element)
+            return
         if len(self.scene.cells) > 1 and self._target[0] != "library":
             self._open(hit.item)
+
+    def show_gate_transistors(self, element: int) -> None:
+        """Pasa a la vista de transistores con la etapa ``element`` resaltada."""
+        if not self.mode.buttons["schematic"].isEnabled():
+            return
+        self._set_mode("schematic")
+        cell = self.scene.cells[0]
+        gate = next(g for g in gl.cell_gates(cell.binding.netlist) if g.element == element)
+        steps = [set(st.transistors) for st in self.steps]
+        if set(gate.transistors) in steps:
+            self.step_pos = steps.index(set(gate.transistors))
+            self._apply_step()
+        self.status.emit(f"Transistores de la etapa {gl.symbol_name(gate.kind)}")
 
     def _open(self, item: CellItem) -> None:
         path = item.binding.path
@@ -1293,7 +1391,11 @@ class TransistorTab(QWidget):
             up.setEnabled(self._target[0] != "unit")
             menu.addAction(up)
         menu.addSeparator()
-        for key, text in (("schematic", "Ver como esquema"), ("silicon", "Ver como silicio")):
+        for key, text in (
+            ("gates", "Ver como compuertas"),
+            ("schematic", "Ver sus transistores"),
+            ("silicon", "Ver como silicio"),
+        ):
             a = QAction(text, menu)
             a.setCheckable(True)
             a.setChecked(self.mode.value() == key)
@@ -1326,14 +1428,29 @@ class TransistorTab(QWidget):
     def _clear_inspector(self) -> None:
         self._inspected = None
         ins = self.inspector
+        ins.section.show_device(None)
+        ins.open_button.hide()
+        cells = self.scene.cells
+        if len(cells) == 1 and not self.silicon and self.scene.values is not None:
+            cell = cells[0]
+            netlist = cell.binding.netlist
+            lines = [
+                f"{k + 1}. {gl.explain(g, netlist, cell.value_fn())}"
+                for k, g in enumerate(gl.cell_gates(netlist))
+            ]
+            ins.title.setText(f"<b>{cell.binding.circuit.name}</b>: cómo calcula sus salidas")
+            ins.body.setText("<br>".join(lines))
+            ins.explain.setText(
+                "Una línea por etapa, en orden de señal, con los valores de ahora. Pase el "
+                "ratón por una compuerta o un transistor para ver el detalle."
+            )
+            return
         ins.title.setText("<b>Nada elegido</b>")
         ins.body.setText(
             "Pase el ratón por un transistor, un cable o una celda. Un clic fija el "
             "transistor; Esc lo suelta."
         )
-        ins.section.show_device(None)
         ins.explain.setText("")
-        ins.open_button.hide()
 
     def _inspect(self, hit: Hit) -> None:
         values = self.scene.values
@@ -1349,6 +1466,18 @@ class TransistorTab(QWidget):
             "Abrir su bloque" if self._target[0] == "unit" else f"Abrir {b.path or c.name}"
         )
         where = b.path or c.name
+        if hit.kind == "gate" and hit.element is not None:
+            gate = next(g for g in gl.cell_gates(b.netlist) if g.element == hit.element)
+            ins.section.show_device(None)
+            out = c.label(gate.output) if gate.output >= 0 else ""
+            ins.title.setText(f"<b>{gl.symbol_name(gate.kind)}</b> → {out}")
+            ins.body.setText(gl.explain(gate, b.netlist, hit.item.value_fn()))
+            names = ", ".join(c.transistors[i].name for i in gate.transistors)
+            ins.explain.setText(
+                f"{len(gate.transistors)} transistores ({names}). Doble clic para verlos."
+            )
+            self.status.emit(f"{gl.symbol_name(gate.kind)} de {where}: {out} = {gate.expression}")
+            return
         if hit.kind == "transistor" and hit.transistor is not None:
             real = b.transistors[hit.transistor]
             d = c.transistors[hit.transistor]
@@ -1477,7 +1606,7 @@ class TransistorTab(QWidget):
     def export_dialog(self) -> None:
         kind, path = self._target
         name = self.library.name if kind == "library" else (path or kind).replace(".", "_")
-        mode = "silicio" if self.silicon else "esquema"
+        mode = {"silicon": "silicio", "gates": "compuertas"}.get(self.mode.value(), "esquema")
         target, _ = QFileDialog.getSaveFileName(
             self, "Exportar imagen", f"{name}_{mode}.png", "Imagen PNG (*.png)"
         )

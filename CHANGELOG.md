@@ -6,6 +6,13 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 ## [Sin publicar]
 
 ### Agregado
+- Vista **Compuertas** de cada celda (ADR-0016): cada etapa CMOS se dibuja como la
+  compuerta que implementa (inversor, NAND, NOR, AOI/OAI o compuerta compleja, y
+  transmission gates), deducida de sus transistores y verificada contra la simulación en
+  todas las combinaciones de entrada. Es la vista inicial de una celda; doble clic en una
+  compuerta abre sus transistores con la etapa resaltada (`gui/gates.py`).
+- Panel «Qué está pasando» en Transistores: la fórmula de cada etapa con sus valores
+  (`y = ¬(a·b) = ¬(1·0) = 1`) y qué red conduce; el paso a paso de la celda la narra.
 - Esquema paso a paso: «Siguiente» muestra las etapas de una celda en orden de dependencia
   de señal, resalta sus transistores y atenúa el resto (`gui/steps.py`).
 - Pestaña **Recorrido**: la última operación paso a paso por las etapas del hardware
@@ -37,6 +44,12 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   MOSFET, la lógica CMOS y el estándar IEEE 754.
 
 ### Cambiado
+- Esquema de transistores más limpio: fondo de la red pull-up y de la pull-down con su
+  nombre, cables en 1 más gruesos, nombres de transistores solo al pasar el ratón y sin
+  recuadros verdes salvo que se pidan.
+- Barra de Transistores simplificada: vistas Compuertas · Transistores · Silicio; las
+  opciones y exportar pasan al menú «Ver ▾»; el panel de la izquierda se pliega (☰,
+  Ctrl+F) y se oculta al ver una operación.
 - La GUI se divide en módulos (modelo sin Qt, widgets, una pestaña por archivo) y usa su
   propio tema con el estilo Fusion; cabe en una pantalla de 1280 × 720.
 - El material de organización del equipo (reparto, flujo de contribución, lista de tareas

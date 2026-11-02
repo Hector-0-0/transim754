@@ -120,7 +120,8 @@ class Device:
 @dataclass(frozen=True, slots=True)
 class Text:
     """Etiqueta. ``kind``: ``gate`` (compuerta), ``net`` (nodo), ``pin_in``/``pin_out``
-    (puerto de la celda), ``rail``, ``name`` (nombre del transistor) o ``title``.
+    (puerto de la celda), ``rail``, ``band`` (nombre de una red), ``name`` (nombre del
+    transistor) o ``title``.
     ``align``: ``left``, ``right`` o ``center`` respecto de ``x``; ``y`` es el centro."""
 
     text: str
@@ -129,6 +130,17 @@ class Text:
     kind: str
     node: int | None = None
     align: str = "left"
+
+
+@dataclass(frozen=True, slots=True)
+class Band:
+    """Fondo de una red: ``up`` (pull-up de pMOS) o ``down`` (pull-down de nMOS)."""
+
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+    kind: str
 
 
 @dataclass
@@ -143,6 +155,7 @@ class Schematic:
     devices: list[Device] = field(default_factory=list)
     texts: list[Text] = field(default_factory=list)
     rails: list[Seg] = field(default_factory=list)
+    bands: list[Band] = field(default_factory=list)
     stages: list[tuple[Stage, float, float]] = field(default_factory=list)
     """Cada etapa con la posición (x, y) de su riel VDD sobre la columna de la salida."""
 
@@ -156,6 +169,7 @@ class Schematic:
         ]
         self.texts = [Text(t.text, t.x + dx, t.y + dy, t.kind, t.node, t.align) for t in self.texts]
         self.stages = [(s, x + dx, y + dy) for s, x, y in self.stages]
+        self.bands = [Band(b.x0 + dx, b.y0 + dy, b.x1 + dx, b.y1 + dy, b.kind) for b in self.bands]
 
 
 # ------------------------------------------------------------ redes SP
@@ -316,11 +330,16 @@ class _Builder:
         self.out.rails.append(Seg(x, y + h, x_out - OUT_LEN / 2, y + h, gnd))
         self.out.texts.append(Text("VDD", x, y - 9, "rail", vdd))
         self.out.texts.append(Text("GND", x, y + h + 10, "rail", gnd))
+        caption_x = x + self.w("VDD") + 10
+        self.out.texts.append(Text("red pull-up · pMOS", caption_x, y - 9, "band"))
+        self.out.texts.append(Text("red pull-down · nMOS", caption_x, y + h + 10, "band"))
         self.seg(spine, y, spine, y + RAIL_GAP, vdd)
         self.out.joints.append(Joint(spine, y, vdd))
         self.emit(e.pull_up, spine, y + RAIL_GAP)
         y1 = y + RAIL_GAP + up.height
         y_out = y1 + OUT_GAP / 2
+        self.out.bands.append(Band(x, y, x_out - OUT_LEN / 2, y_out, "up"))
+        self.out.bands.append(Band(x, y_out, x_out - OUT_LEN / 2, y + h, "down"))
         self.seg(spine, y1, spine, y1 + OUT_GAP, e.output)
         self.out.joints.append(Joint(spine, y_out, e.output))
         self.seg(spine, y_out, x_out, y_out, e.output)
