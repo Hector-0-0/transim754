@@ -1,0 +1,367 @@
+GUÍA DEL CÓDIGO DE TRANSIM754 PARA EL EQUIPO
+Qué archivo abrir, dónde está cada parte y qué hace, según el bloque que expone cada uno.
+
+Los enlaces van al repositorio en GitHub y abren el archivo en la línea exacta:
+https://github.com/Hector-0-0/transim754
+Si un número de línea no coincide, busca el nombre de la función: los nombres no cambian.
+
+
+======================================================================
+1. CÓMO ABRIR Y VER EL CÓDIGO (PARA TODOS)
+======================================================================
+
+En el navegador, sin instalar nada
+  Abre cualquier enlace de esta guía. GitHub resalta las líneas indicadas.
+
+En tu computadora
+  1. La primera vez:
+       git clone https://github.com/Hector-0-0/transim754.git
+       cd transim754
+       make install-gui
+     Las veces siguientes, para tener lo último:
+       git pull
+  2. Abre la carpeta en VS Code:  code .
+  3. Atajos de VS Code que sirven para esta guía:
+       Ctrl+P            abrir un archivo escribiendo su nombre (por ejemplo «rounding»)
+       Ctrl+G            ir a un número de línea
+       Ctrl+Shift+O      lista de funciones del archivo abierto
+       F12               ir a la definición de lo que está bajo el cursor
+       Ctrl+Shift+F      buscar un texto en todo el proyecto
+
+Para verlo funcionar
+  make gui        abre el programa en modo exposición (lo que se muestra en clase)
+  make demo       calcula 1.5 + 2.25 en la consola y muestra los buses internos
+  make test       corre las pruebas rápidas (609)
+  Con uv también funciona:  uv run transim gui   y   uv run transim calc 1 / 3 --trace
+
+Mapa de carpetas (src/transim/)
+  core/        L0: transistor, nodos, valores lógicos y los dos simuladores
+  cells/       L1: compuertas CMOS hechas con transistores (NAND, XOR, FA, flip-flop)
+  blocks/      L2: bloques hechos con celdas (sumadores, desplazador, contador de ceros)
+  fpu/         L3: la unidad de punto flotante (suma, resta, multiplicación, división)
+  cpu/         L4: la CPU T754 (extra; oculta en la exposición)
+  ui/          L5: la consola (cli.py) y la interfaz gráfica (gui/)
+  metrics/     conteo de transistores, camino crítico, ciclos y actividad
+  reference/   modelo de referencia en Python puro, para comparar
+  tests/       las pruebas (fuera de src/, en la raíz del proyecto)
+
+
+======================================================================
+2. LA IDEA QUE COMPARTE TODO EL CÓDIGO
+======================================================================
+
+a) Un transistor se define con una línea
+   nl.nmos(compuerta, extremo1, extremo2, "nombre")
+   nl.pmos(compuerta, extremo1, extremo2, "nombre")
+   Están en src/transim/core/netlist.py, líneas 190 y 194:
+   https://github.com/Hector-0-0/transim754/blob/main/src/transim/core/netlist.py#L190-L196
+   «nl» es un Netlist: la lista de nodos y transistores de un circuito.
+
+b) Solo las celdas (L1) colocan transistores directamente.
+   Los bloques (L2) y la FPU (L3) no escriben ningún nmos ni pmos: usan celdas ya
+   hechas. Lo hacen de dos formas:
+   - w.xor2(a, b), w.and2(a, b), w.full_adder(...): la clase Wiring coloca una celda y
+     devuelve su salida. src/transim/blocks/wiring.py, línea 16.
+     https://github.com/Hector-0-0/transim754/blob/main/src/transim/blocks/wiring.py#L16-L80
+   - nl.instantiate(bloque, "nombre", {conexiones}): copia un bloque entero dentro de
+     otro. src/transim/core/netlist.py, línea 211.
+     https://github.com/Hector-0-0/transim754/blob/main/src/transim/core/netlist.py#L211-L240
+   Por eso la unidad de suma tiene 13 974 transistores sin que nadie los haya escrito
+   uno por uno: salen de repetir celdas.
+
+c) El resultado sale de simular, no de calcular en Python.
+   El simulador pone las entradas, deja que los transistores conduzcan o no hasta que
+   todo se estabiliza y lee los nodos de salida. src/transim/core/unit.py, línea 53
+   (evaluate). Después, FPResult.from_outputs arma el resultado: el bus «y» son los
+   bits y las salidas invalid, div_by_zero, overflow, underflow e inexact son los flags.
+   src/transim/fpu/format.py, línea 227.
+   https://github.com/Hector-0-0/transim754/blob/main/src/transim/fpu/format.py#L219-L249
+
+
+======================================================================
+3. HÉCTOR FLORES (bloque 1: introducción y cómo se usa)
+======================================================================
+
+Lo que explicas: las capas, el reto y cómo se usa el programa.
+
+src/transim/ui/cli.py
+  calc (línea 129): el comando «transim calc 1.5 + 2.25». Convierte el texto a bits,
+  lo calcula en transistores y muestra el resultado y los flags.
+  https://github.com/Hector-0-0/transim754/blob/main/src/transim/ui/cli.py#L128-L171
+  gui (línea 247): el comando «transim gui»; con «--completo» abre todo.
+  https://github.com/Hector-0-0/transim754/blob/main/src/transim/ui/cli.py#L247-L265
+
+src/transim/ui/gui/app.py
+  MainWindow (línea 225): la ventana con las pestañas. En modo exposición oculta los
+  menús, la pestaña Programa y desactiva los atajos (ver ADR-0019).
+  https://github.com/Hector-0-0/transim754/blob/main/src/transim/ui/gui/app.py#L225-L290
+
+src/transim/ui/gui/model.py
+  calculate (línea 222): lo que pasa al pulsar «Calcular en transistores». Elige la
+  unidad (suma, multiplicación o división), le da los bits de a y b, simula y guarda el
+  estado de antes y de después.
+  https://github.com/Hector-0-0/transim754/blob/main/src/transim/ui/gui/model.py#L222-L258
+
+src/transim/ui/gui/operation_tab.py
+  show_result (línea 521): pinta el resultado, los flags, los bits y los ciclos.
+  https://github.com/Hector-0-0/transim754/blob/main/src/transim/ui/gui/operation_tab.py#L521-L570
+
+Dónde se ve: todo el programa. Las capas están en docs/01_arquitectura.md y en la
+diapositiva 4.
+
+
+======================================================================
+4. DANIEL ALCANTARA (bloque 2: definiciones matemáticas)
+======================================================================
+
+Lo que explicas: el formato IEEE 754, la suma en cinco pasos, el redondeo y los flags.
+
+src/transim/fpu/format.py
+  FloatFormat (línea 36): un formato con «exp_bits» de exponente y «frac_bits» de
+  fracción. BINARY32 = FloatFormat(8, 23) en la línea 148; BINARY16, línea 151.
+  bias (línea 58): el sesgo, 2^(e−1) − 1; en binary32 da 127.
+  fields (línea 103): separa los bits en signo, exponente y fracción.
+  classify (línea 120): dice si es cero, subnormal, normal, infinito o NaN.
+  https://github.com/Hector-0-0/transim754/blob/main/src/transim/fpu/format.py#L36-L151
+
+src/transim/fpu/codec.py
+  unpacker (línea 14): en hardware, separa el número y agrega el «1.» implícito. Ese 1
+  sale de un OR de los bits del exponente: si E ≠ 0, el número es normal y lleva el 1.
+  https://github.com/Hector-0-0/transim754/blob/main/src/transim/fpu/codec.py#L14-L41
+
+src/transim/fpu/rounding.py (redondeo y tres de los flags)
+  round_and_pack (línea 24) tiene seis pasos comentados:
+    paso 2, línea 77: inc = G·(R + S + LSB). Si G vale 1 y además R, S o el último bit
+      valen 1, se suma 1. Es el redondeo al par más cercano.
+    línea 80: exact = no hay G, R ni S. Si no es exacto, se enciende NX.
+    paso 4, línea 86: si el exponente no cabe, overflow (OF) y el resultado es infinito.
+    paso 5, líneas 90 a 95: underflow (UF) = diminuto e inexacto; inexact (NX).
+  https://github.com/Hector-0-0/transim754/blob/main/src/transim/fpu/rounding.py#L77-L96
+
+src/transim/reference/fpu.py (la misma matemática en Python, para comparar)
+  _rne (línea 55) y round_exact (línea 77): el redondeo hecho con enteros.
+  fadd (línea 127): la suma de referencia.
+  https://github.com/Hector-0-0/transim754/blob/main/src/transim/reference/fpu.py#L55-L148
+
+Dónde se ve: pestaña Operación, panel «Bits IEEE 754» (signo, exponente y fracción) y
+los chips de flags (NV, DZ, OF, UF, NX). En consola: make demo.
+
+
+======================================================================
+5. JAIRO HUAMÁN (bloque 3: capas L0 y L1, transistores y celdas)
+======================================================================
+
+Lo que explicas: el transistor como interruptor, las compuertas CMOS y cómo se ven.
+
+L0, el transistor
+  src/transim/core/transistor.py
+    conduction_for (líneas 32 a 37): el nMOS conduce con la compuerta en 1 y el pMOS
+    con la compuerta en 0. Si la compuerta es X, no se sabe.
+    https://github.com/Hector-0-0/transim754/blob/main/src/transim/core/transistor.py#L32-L37
+    Transistor (línea 41): tipo, compuerta, fuente, drenador y nombre.
+  src/transim/core/signals.py
+    Logic (línea 16): los valores 0, 1, X y Z.
+    Strength (línea 33): las fuerzas CHARGE (1), DRIVEN (2) y SUPPLY (3).
+    resolve (líneas 75 a 96): cuando varias fuentes llegan a un nodo, gana la de más
+    fuerza; si chocan 0 y 1 con la misma fuerza, el nodo queda en X.
+    https://github.com/Hector-0-0/transim754/blob/main/src/transim/core/signals.py#L75-L96
+  src/transim/core/engine_switch.py
+    SwitchEngine (línea 66): el simulador transistor por transistor. El comentario del
+    principio (líneas 1 a 20) explica el algoritmo en cinco pasos.
+  src/transim/core/engine_cached.py
+    CellTable (línea 70): saca la tabla de verdad de cada celda simulando sus
+    transistores una vez; table_for (línea 146) la comparte. Es el motor «rápido».
+
+L1, las celdas (aquí sí se escriben los transistores)
+  src/transim/cells/combinational.py
+    nand2 (líneas 34 a 47): 4 transistores. Dos pMOS en paralelo hacia VDD (pa, pb) y
+    dos nMOS en serie hacia GND (na, nb) con el nodo intermedio n1.
+    https://github.com/Hector-0-0/transim754/blob/main/src/transim/cells/combinational.py#L34-L47
+    xor2 (línea 100) y _xor_like (línea 208): 12 transistores, dos inversores y una
+    compuerta AND-OR invertida.
+    mux2 (línea 118): 12 transistores con dos transmission gates.
+    full_adder (línea 153): sumador espejo de 28 transistores. El acarreo está en la
+    línea 167 y la suma en la 181; la red pMOS repite la forma de la red nMOS.
+    https://github.com/Hector-0-0/transim754/blob/main/src/transim/cells/combinational.py#L153-L200
+  src/transim/cells/sequential.py: d_latch (línea 20) y dff (línea 40).
+  src/transim/cells/library.py, CELLS (línea 10): la lista de celdas que aparece en la
+  Biblioteca del programa.
+
+Cómo las dibuja el programa
+  src/transim/ui/gui/gates.py
+    cell_gates (línea 151): mira los transistores de cada etapa y deduce la compuerta:
+    nMOS en serie es AND, en paralelo es OR y la salida sale negada.
+    https://github.com/Hector-0-0/transim754/blob/main/src/transim/ui/gui/gates.py#L151-L200
+  src/transim/ui/gui/schematic.py, build (línea 456): el esquema de transistores.
+  src/transim/ui/gui/silicon.py, build (línea 228): el dibujo en silicio; check
+  (línea 583) comprueba que no tenga cortocircuitos.
+
+Dónde se ve: pestaña Transistores, botón ☰, Biblioteca. Botones Compuertas,
+Transistores y Silicio.
+
+
+======================================================================
+6. FABRIZZIO ANCAJIMA (bloque 4: capas L2 y L3, bloques y FPU)
+======================================================================
+
+Lo que explicas: sumadores, desplazador, contador de ceros, la suma completa, la
+multiplicación, la división y el plano del chip.
+
+L2, los bloques (hechos con celdas)
+  src/transim/blocks/adders.py
+    ripple_carry_adder (línea 22): un sumador completo por bit; el acarreo pasa de uno
+    al siguiente (el bucle está en las líneas 32 a 37).
+    https://github.com/Hector-0-0/transim754/blob/main/src/transim/blocks/adders.py#L22-L39
+    carry_lookahead_adder (línea 41): calcula los acarreos por grupos de 4; menos
+    niveles y más transistores.
+  src/transim/blocks/subtractor.py, adder_subtractor (línea 9): para restar, cada bit
+  de b pasa por un XOR con «sub» y «sub» entra como acarreo inicial (líneas 26 y 27).
+  Es el complemento a 2.
+  https://github.com/Hector-0-0/transim754/blob/main/src/transim/blocks/subtractor.py#L9-L30
+  src/transim/blocks/shifter.py, barrel_shifter (línea 20): 5 etapas que corren 1, 2,
+  4, 8 y 16 lugares; los bits que salen forman el sticky (líneas 40 a 51).
+  https://github.com/Hector-0-0/transim754/blob/main/src/transim/blocks/shifter.py#L40-L51
+  src/transim/blocks/lzc.py: leading_zero_counter (línea 15) y _tree (líneas 48 a 56),
+  el árbol que cuenta los ceros a la izquierda.
+  src/transim/blocks/comparator.py, magnitude_comparator (línea 10): compara restando.
+
+L3, la FPU
+  src/transim/fpu/add_sub.py, fp_add_sub (línea 30). Cada paso es un bloque y está
+  numerado en un comentario:
+    1. desempaquetar (línea 48)          2. ordenar por magnitud (línea 53)
+    3. restar exponentes (línea 62)      4. alinear con el desplazador (línea 66)
+    5. sumar mantisas (línea 81)         6. signo (línea 90)
+    7. contar ceros y normalizar (94)    8. redondear y empaquetar (línea 111)
+    9. casos especiales y elegir el resultado (línea 114)
+  https://github.com/Hector-0-0/transim754/blob/main/src/transim/fpu/add_sub.py#L30-L127
+  src/transim/fpu/mul.py
+    array_multiplier (línea 20): 24 × 24 compuertas AND para los productos parciales y
+    filas de sumadores que los acumulan.
+    fp_multiplier (línea 55): el exponente es ea + eb − sesgo + 1 − lz, donde lz son
+    los ceros a la izquierda del producto (líneas 89 a 95).
+    https://github.com/Hector-0-0/transim754/blob/main/src/transim/fpu/mul.py#L20-L113
+  src/transim/fpu/div.py
+    nonrestoring_divider (línea 26): una fila de suma o resta por cada bit del
+    cociente; el bucle está en las líneas 50 a 54.
+    https://github.com/Hector-0-0/transim754/blob/main/src/transim/fpu/div.py#L26-L62
+    fp_divider (línea 64): el exponente es ea − eb + sesgo − 1 + el bit alto del
+    cociente (líneas 106 a 109).
+
+El plano del chip
+  src/transim/ui/gui/floorplan.py, squarify (línea 70): reparte el rectángulo en
+  bloques con área proporcional a sus transistores.
+  src/transim/ui/gui/transistor_tab.py, _tiles (línea 986): arma los rectángulos de
+  cada bloque con su nombre y su color.
+
+Dónde se ve: pestaña Transistores, Última operación: el plano. Doble clic en un bloque
+para ver sus celdas. En Recorrido, «Ver sus transistores» abre cada bloque.
+
+
+======================================================================
+7. YENNY CHÁVEZ (bloque 5: métricas y prueba integral)
+======================================================================
+
+Lo que explicas: los ciclos de reloj, el recorrido paso a paso y el acarreo.
+
+Métricas
+  src/transim/metrics/critical_path.py
+    critical_path (línea 8) y cell_depth (línea 57): el camino más largo en celdas, de
+    las entradas a las salidas. La suma da 176, la multiplicación 157 y la división 852.
+    https://github.com/Hector-0-0/transim754/blob/main/src/transim/metrics/critical_path.py#L8-L59
+  src/transim/metrics/stages.py
+    reference_period (líneas 133 a 141): el reloj vale el camino crítico de la ALU
+    entera, 39 celdas.
+    schedule (línea 109): reparte las 176 celdas en ciclos de 39; salen 5 ciclos.
+    activity_by_stage (línea 163): cuenta cuántos nodos cambiaron en cada etapa.
+    https://github.com/Hector-0-0/transim754/blob/main/src/transim/metrics/stages.py#L109-L171
+  src/transim/core/engine_switch.py, node_toggles (línea 112): el contador de
+  cambios de cada nodo. De ahí salen las conmutaciones y el mapa de actividad.
+
+Recorrido y acarreo
+  src/transim/ui/gui/walkthrough.py, build (línea 706): arma los pasos de la
+  pestaña Recorrido con los valores reales de la simulación; _Story (línea 236) escribe
+  la explicación de cada paso.
+  src/transim/ui/gui/propagation.py, replay (línea 129): reproduce la operación con un
+  retardo por celda y comprueba que termina igual que el simulador.
+  https://github.com/Hector-0-0/transim754/blob/main/src/transim/ui/gui/propagation.py#L129-L176
+  src/transim/ui/gui/bitgrid.py, grid (línea 144): ubica cada celda en la columna de
+  su bit y la fila de su nivel; por eso el acarreo se ve como una escalera.
+
+Dónde se ve: pestaña Operación, abajo «Ciclos de reloj». Pestaña Recorrido, botón
+«Siguiente». En el paso 5, «Ver el acarreo».
+
+
+======================================================================
+8. RONALD AYALA (bloque 6: casos especiales, verificación y cierre)
+======================================================================
+
+Lo que explicas: 1 ÷ 3, 1 ÷ 0, 0 ÷ 0 y cómo sabemos que todo está bien.
+
+Casos especiales (y los otros dos flags)
+  src/transim/fpu/special.py
+    classifier (líneas 17 a 41): con compuertas, mira el exponente y la fracción y dice
+    si el número es cero, subnormal, normal, infinito o NaN.
+    https://github.com/Hector-0-0/transim754/blob/main/src/transim/fpu/special.py#L17-L41
+    special_cases (línea 44): decide los casos de la tabla del estándar.
+      línea 69: en la suma, ∞ − ∞ es operación inválida.
+      línea 83: en la división, ∞/∞ y 0/0 son inválidas.
+      línea 87: división por cero (DZ): x / 0 con x finito y distinto de cero.
+      línea 89: invalid (NV) = un NaN de señalización o una operación inválida.
+    https://github.com/Hector-0-0/transim754/blob/main/src/transim/fpu/special.py#L61-L100
+    select_result (línea 136): si el caso es especial, la salida es el resultado
+    especial; si no, el numérico.
+
+Verificación
+  src/transim/reference/fpu.py: fadd (línea 127), fsub (149), fmul (154) y fdiv (179).
+  Es la misma aritmética hecha en Python con números exactos.
+  tests/oracle/numpy_oracle.py, expected (línea 71): cada resultado de la referencia
+  se compara también con NumPy (el float32 del procesador real).
+  https://github.com/Hector-0-0/transim754/blob/main/tests/oracle/numpy_oracle.py#L56-L90
+  tests/fpu/comun.py, pares_aceptacion (línea 36): todos los pares de casos borde más
+  10 000 pares al azar.
+  https://github.com/Hector-0-0/transim754/blob/main/tests/fpu/comun.py#L14-L38
+  Las pruebas de aceptación: test_aceptacion en tests/fpu/test_suma_resta.py (línea
+  36), tests/fpu/test_multiplicacion.py (línea 61) y tests/fpu/test_division.py (línea
+  64). Se corren con «make test-all» (tardan varios minutos).
+
+Extra, la CPU (por si preguntan)
+  src/transim/cpu/isa.py (las instrucciones) y src/transim/cpu/machine.py, Machine
+  (línea 28). Se ve con «transim gui --completo», pestaña Programa.
+
+Dónde se ve: pestaña Operación, escribiendo 1 y 3 y eligiendo ÷. En consola:
+uv run transim calc 1 / 3
+
+
+======================================================================
+9. LOS FLAGS DE PRINCIPIO A FIN (para quien pregunte)
+======================================================================
+
+  Flag   Nombre en el código   Dónde se calcula en hardware
+  NV     invalid               fpu/special.py, línea 89
+  DZ     div_by_zero           fpu/special.py, línea 87
+  OF     overflow              fpu/rounding.py, línea 88
+  UF     underflow             fpu/rounding.py, línea 95
+  NX     inexact               fpu/rounding.py, línea 94
+
+  Cada unidad junta los flags del redondeo y de los casos especiales en select_result
+  (fpu/special.py, línea 136). Después, FPResult.from_outputs (fpu/format.py, línea
+  227) los lee de los nodos de salida y la clase Flags (fpu/format.py, línea 161) los
+  guarda. En el programa son los chips NV, DZ, OF, UF y NX de la pestaña Operación.
+
+
+======================================================================
+10. LOS TRANSISTORES, CAPA POR CAPA (resumen)
+======================================================================
+
+  Capa   Qué se define                    Cómo                          Archivo
+  L0     el transistor                    clase Transistor              core/transistor.py
+  L1     cada celda                       nl.nmos y nl.pmos, uno por    cells/combinational.py
+                                          línea                         cells/sequential.py
+  L2     cada bloque                      celdas con Wiring             blocks/*.py
+                                          (w.xor2, w.full_adder...)
+  L3     cada unidad de la FPU            bloques con nl.instantiate    fpu/*.py
+  L4     la CPU                           unidades de la FPU y la ALU   cpu/*.py
+
+  Para contar los transistores de cualquier circuito: len(netlist.transistors), o
+  netlist.transistor_count() (core/netlist.py, línea 315), que da los nMOS, los pMOS y
+  el total.

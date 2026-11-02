@@ -75,6 +75,9 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 - Diapositivas y guion de la exposición con las capturas del modo exposición, en
   oscuro; los pasos en vivo se hacen con el ratón. Se quita la diapositiva del corte del
   transistor.
+- Guía del código para el equipo (`interno/equipo/GUIA_CODIGO.txt`): por integrante,
+  qué archivos abrir, en qué líneas está cada bloque (flags, transistores, celdas,
+  bloques, métricas, verificación) y dónde se ve en el programa.
 - Diapositivas con capturas de las vistas nuevas: Recorrido, plano del chip, rejilla del
   acarreo, compuertas de XOR2 y FA, esquema de NAND2 con sus redes y la celda junto a su
   silicio; se quitan las del silicio en filas.
