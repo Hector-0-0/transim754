@@ -19,11 +19,18 @@ Con 3 y 4, todos los CCC de la celda quedan dentro de ella: su estado estable de
 solo de sus entradas y de su estado interno previo, que es exactamente la clave de la
 tabla. Los contadores de actividad se calculan con la misma regla que el motor switch
 (comparación de estados estables), así que ambos motores reportan los mismos conteos.
+
+Las tablas se comparten entre todos los motores del proceso, también entre hilos (la
+interfaz calcula en segundo plano y la CPU puede correr a la vez). Cada tabla calcula
+sus fallos de memo con un solo simulador interno, así que ese cálculo va bajo un
+candado: sin él, dos hilos podrían mezclar sus estados y dejar en el memo un resultado
+equivocado para siempre.
 """
 
 from __future__ import annotations
 
 import itertools
+import threading
 from collections import deque
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -80,6 +87,7 @@ class CellTable:
             self.state_ids.index(definition.outputs[n].id) for n in self.output_names
         ]
         self._sim = SwitchEngine(definition)
+        self._lock = threading.Lock()
         self._memo: dict[StateKey, StepResult] = {}
         self.hits = 0
         self.misses = 0
@@ -106,36 +114,43 @@ class CellTable:
         if cached is not None:
             self.hits += 1
             return cached
-        self.misses += 1
-        values = [Logic.X] * len(self.definition.nodes)
-        values[self.definition.vdd.id] = Logic.ONE
-        values[self.definition.gnd.id] = Logic.ZERO
-        for nid, v in zip(self._input_ids, inputs, strict=True):
-            values[nid] = v
-        for nid, v in zip(self.state_ids, state, strict=True):
-            values[nid] = v
-        self._sim.load_state(values)
-        self._sim.resettle()
-        result_values = self._sim.values()
-        result_strengths = self._sim.strengths()
-        result = (
-            tuple(result_values[n] for n in self.state_ids),
-            tuple(result_strengths[n] for n in self.state_ids),
-        )
-        self._memo[key] = result
-        return result
+        with self._lock:  # un solo simulador interno por tabla
+            cached = self._memo.get(key)
+            if cached is not None:
+                self.hits += 1
+                return cached
+            self.misses += 1
+            values = [Logic.X] * len(self.definition.nodes)
+            values[self.definition.vdd.id] = Logic.ONE
+            values[self.definition.gnd.id] = Logic.ZERO
+            for nid, v in zip(self._input_ids, inputs, strict=True):
+                values[nid] = v
+            for nid, v in zip(self.state_ids, state, strict=True):
+                values[nid] = v
+            self._sim.load_state(values)
+            self._sim.resettle()
+            result_values = self._sim.values()
+            result_strengths = self._sim.strengths()
+            result = (
+                tuple(result_values[n] for n in self.state_ids),
+                tuple(result_strengths[n] for n in self.state_ids),
+            )
+            self._memo[key] = result
+            return result
 
 
 _TABLES: dict[int, CellTable] = {}
+_TABLES_LOCK = threading.Lock()
 
 
 def table_for(definition: Netlist) -> CellTable:
     """Tabla compartida del tipo de celda ``definition`` (se construye una sola vez)."""
-    table = _TABLES.get(id(definition))
-    if table is None or table.definition is not definition:
-        table = CellTable(definition)
-        _TABLES[id(definition)] = table
-    return table
+    with _TABLES_LOCK:
+        table = _TABLES.get(id(definition))
+        if table is None or table.definition is not definition:
+            table = CellTable(definition)
+            _TABLES[id(definition)] = table
+        return table
 
 
 @dataclass(eq=False)

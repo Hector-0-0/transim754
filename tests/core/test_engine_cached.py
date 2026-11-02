@@ -341,3 +341,38 @@ def test_equivalencia_aleatoria_con_entradas_x(
         {k: (rng.choice([0, 1, "X"])) for k in p} for p in pasos * 3
     ]
     assert_equivalentes(nl, con_x)
+
+
+# ------------------------------------------------------------------ hilos
+def test_tabla_compartida_entre_hilos_no_mezcla_estados() -> None:
+    """Dos hilos que fallan el memo de la misma tabla a la vez obtienen cada uno su
+    resultado: el simulador interno de la tabla no se comparte a medias."""
+    import threading
+    import time
+
+    tabla = CellTable(nand2())
+    referencia = CellTable(nand2())
+    estado = tuple(Logic.ONE for _ in tabla.state_ids)  # fuera del memo inicial
+    casos = [(Logic.ONE, Logic.ONE), (Logic.ZERO, Logic.ZERO)]  # y = 0 y y = 1
+    esperado = {c: referencia.step(c, estado) for c in casos}
+
+    cargar = tabla._sim.load_state
+    juntos = threading.Barrier(len(casos))
+
+    def cargar_lento(valores: Sequence[Logic]) -> None:
+        cargar(valores)
+        time.sleep(0.05)  # el otro hilo tendría tiempo de pisar el estado
+
+    tabla._sim.load_state = cargar_lento  # type: ignore[method-assign]
+    resultados: dict[tuple[Logic, ...], object] = {}
+
+    def correr(entradas: tuple[Logic, ...]) -> None:
+        juntos.wait()
+        resultados[entradas] = tabla.step(entradas, estado)
+
+    hilos = [threading.Thread(target=correr, args=(c,)) for c in casos]
+    for h in hilos:
+        h.start()
+    for h in hilos:
+        h.join()
+    assert resultados == esperado
