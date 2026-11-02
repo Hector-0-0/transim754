@@ -11,7 +11,7 @@ paso), **Transistores** (por dentro, en compuertas, esquema y silicio) y **Progr
 FPU dentro de una CPU).
 
 Modo exposición (ADR-0019), el de ``transim gui``: siempre oscuro, sin menús, sin atajos
-de teclado, sin la pestaña Programa, sin el historial y sin el panel de detalle de
+de teclado, sin la pestaña Programa, sin Ejemplos ni historial y sin el panel de detalle de
 Transistores. Nada se borra: ``transim gui --completo`` muestra todo.
 """
 
@@ -70,6 +70,7 @@ from transim.ui.gui.operation_tab import OperationTab
 from transim.ui.gui.program_tab import ProgramTab
 from transim.ui.gui.transistor_tab import BLOCK_LIMIT, LEAF_CELLS, TransistorTab
 from transim.ui.gui.walkthrough_tab import WalkthroughTab
+from transim.ui.gui.widgets import guard_wheel
 
 TITLE = "TranSim754 — procesador IEEE 754 de transistores simulados"
 VERSION = "0.2.0"
@@ -233,6 +234,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.persist = persist
         self.full = full
+        guard_wheel()
         self.setWindowTitle(TITLE)
         self.setWindowIcon(app_icon())
         pool = QThreadPool.globalInstance()

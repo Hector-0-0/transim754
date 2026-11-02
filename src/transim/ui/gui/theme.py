@@ -1,17 +1,21 @@
 """Tema visual de la interfaz: paleta clara y oscura, hoja de estilo y colores del dibujo.
 
 La interfaz usa el estilo Fusion con su propia paleta, así se ve igual en cualquier
-escritorio. Por defecto sigue el modo claro u oscuro del sistema; el menú Ver permite
-fijarlo. Los colores de los valores lógicos son los mismos en todas las vistas:
+escritorio. Arranca en oscuro (ADR-0019); en el modo completo, el menú Ver permite
+cambiarlo. Los colores de los valores lógicos son los mismos en todas las vistas:
 1 rojo, 0 azul, X ámbar, Z gris; un canal que conduce es verde.
 """
 
 from __future__ import annotations
 
+import atexit
+import shutil
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QGuiApplication, QPalette
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QColor, QGuiApplication, QImage, QPainter, QPalette, QPolygonF
 from PySide6.QtWidgets import QApplication
 
 from transim.core.signals import Logic
@@ -197,8 +201,48 @@ def apply(app: QApplication, theme: Theme) -> None:
     app.setStyleSheet(stylesheet(theme))
 
 
+ARROW_W, ARROW_H = 18, 12
+"""Tamaño en píxeles de las flechas dibujadas (el doble del que se ve: nítidas en HiDPI)."""
+
+_arrow_dir: Path | None = None
+
+
+def arrow_images(color: str) -> tuple[str, str]:
+    """Rutas de dos PNG con una flecha hacia arriba y otra hacia abajo de ``color``.
+
+    La hoja de estilo reemplaza el dibujo nativo de los cuadros numéricos y de las listas
+    desplegables: sin una imagen propia, sus flechas no se ven. Se dibujan una vez por
+    color en una carpeta temporal que se borra al salir.
+    """
+    global _arrow_dir
+    if _arrow_dir is None:
+        _arrow_dir = Path(tempfile.mkdtemp(prefix="transim754-"))
+        atexit.register(shutil.rmtree, _arrow_dir, True)
+    paths = []
+    for name, up in (("up", True), ("down", False)):
+        path = _arrow_dir / f"{name}-{color.lstrip('#')}.png"
+        if not path.exists():
+            img = QImage(ARROW_W, ARROW_H, QImage.Format.Format_ARGB32)
+            img.fill(Qt.GlobalColor.transparent)
+            p = QPainter(img)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(color))
+            top, bottom = (1.0, ARROW_H - 1.0) if up else (ARROW_H - 1.0, 1.0)
+            p.drawPolygon(
+                QPolygonF(
+                    [QPointF(ARROW_W / 2, top), QPointF(ARROW_W - 1, bottom), QPointF(1, bottom)]
+                )
+            )
+            p.end()
+            img.save(str(path))
+        paths.append(path.as_posix())
+    return paths[0], paths[1]
+
+
 def stylesheet(t: Theme) -> str:
     """Hoja de estilo de la aplicación para el tema ``t``."""
+    up, down = arrow_images(t.text)
     return f"""
     QMainWindow, QDialog {{ background: {t.window}; }}
     QToolTip {{
@@ -235,6 +279,18 @@ def stylesheet(t: Theme) -> str:
     }}
     QLineEdit[invalid="true"] {{ border: 1px solid {t.bad}; }}
     QComboBox::drop-down {{ border: 0; width: 22px; }}
+    QComboBox::down-arrow {{ image: url({down}); width: 9px; height: 6px; }}
+    QSpinBox {{ padding-right: 24px; }}
+    QSpinBox::up-button, QSpinBox::down-button {{
+        subcontrol-origin: border; width: 22px; border: 0; background: transparent;
+    }}
+    QSpinBox::up-button {{ subcontrol-position: top right; border-top-right-radius: 7px; }}
+    QSpinBox::down-button {{
+        subcontrol-position: bottom right; border-bottom-right-radius: 7px;
+    }}
+    QSpinBox::up-button:hover, QSpinBox::down-button:hover {{ background: {t.hover}; }}
+    QSpinBox::up-arrow {{ image: url({up}); width: 9px; height: 6px; }}
+    QSpinBox::down-arrow {{ image: url({down}); width: 9px; height: 6px; }}
     QPushButton {{
         background: {t.surface}; border: 1px solid {t.border}; border-radius: 7px;
         padding: 6px 14px;
@@ -268,6 +324,7 @@ def stylesheet(t: Theme) -> str:
     }}
     QToolButton:hover {{ background: {t.hover}; border-color: {t.border}; }}
     QToolButton:checked {{ background: {t.hover}; border-color: {t.accent}; }}
+    QPushButton::menu-indicator, QToolButton::menu-indicator {{ image: none; width: 0px; }}
     QTableWidget, QTreeWidget, QListWidget {{
         background: {t.surface}; border: 1px solid {t.border}; border-radius: 8px;
         gridline-color: {t.border}; alternate-background-color: {t.surface_alt};
@@ -312,6 +369,7 @@ __all__ = [
     "THEMES",
     "Theme",
     "apply",
+    "arrow_images",
     "current",
     "stylesheet",
     "system_prefers_dark",

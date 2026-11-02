@@ -18,6 +18,9 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
   pudo reproducir la caja que «desaparecía» al hacer clic (ni sin pantalla ni en
   Wayland): queda pendiente confirmarlo en la computadora del equipo.
 - Capturas de las diapositivas en oscuro y guion con pasos en vivo solo con el ratón.
+- Ajustes finales: la rueda no cambia de pestaña ni de valor (filtro de eventos en la
+  aplicación), flechas dibujadas para el periodo y el motor, sin flecha doble en los
+  botones con menú, y mensaje claro cuando un bloque no cambia en la propagación.
 
 **Pendientes**
 - Confirmar en la computadora del aula que el diagrama de Recorrido se ve bien al hacer

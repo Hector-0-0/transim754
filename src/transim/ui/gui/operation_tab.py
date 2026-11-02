@@ -408,10 +408,10 @@ class OperationTab(QWidget):
         self._inputs_changed()
 
     def set_presentation(self, on: bool) -> None:
-        """Modo exposición (ADR-0019): oculta el historial, los eventos y las notas, y
-        desactiva los atajos de teclado. Nada se elimina."""
+        """Modo exposición (ADR-0019): oculta los ejemplos, el historial, los eventos y las
+        notas, y desactiva los atajos de teclado. Nada se elimina."""
         self.details.setTabVisible(self.details.indexOf(self.history_list), not on)
-        for w in (self.tiles["eventos"], self.tiles_note, self.cycles_note):
+        for w in (self.examples, self.tiles["eventos"], self.tiles_note, self.cycles_note):
             w.setVisible(not on)
         for sc in self.shortcuts:
             sc.setEnabled(not on)

@@ -243,7 +243,7 @@ la fracción termina en 1011 porque lo que se descartaba pasaba de medio ulp y e
 
 Para saber que todo es correcto, comparamos cada resultado con un modelo de referencia
 y con NumPy, en los casos borde y en 10 000 pares al azar por operación. No hubo
-ninguna diferencia, ni en los bits ni en los flags. El proyecto tiene 623 pruebas
+ninguna diferencia, ni en los bits ni en los flags. El proyecto tiene 626 pruebas
 automáticas que se corren cada vez que cambiamos algo.
 En conclusión: partimos de un transistor que solo es un interruptor y llegamos a una
 máquina de unos 100 600 transistores que suma, resta, multiplica y divide según IEEE

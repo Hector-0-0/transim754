@@ -30,7 +30,8 @@ claro aunque se hubiera preparado en oscuro.
 2. **En modo exposición se oculta, sin eliminarse:**
    - la barra de menús y la guía rápida (F1);
    - la pestaña Programa;
-   - el historial, el indicador de eventos y las notas al pie en Operación;
+   - el botón Ejemplos, el historial, el indicador de eventos y las notas al pie en
+     Operación (los casos notables pasan a las diapositivas);
    - en Recorrido, la línea de teclas y la de conexiones («Recibe de, Entrega a»);
    - en Transistores, el panel de detalle, la línea de descripción y las casillas de
      capas del silicio.

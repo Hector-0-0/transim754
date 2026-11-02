@@ -142,6 +142,7 @@ def test_sin_historial_ni_detalle(expo: object, qapp: object) -> None:
     op = expo.operation  # type: ignore[attr-defined]
     assert not op.details.isTabVisible(op.details.indexOf(op.history_list))
     assert op.tiles["eventos"].isHidden()
+    assert op.examples.isHidden()
     assert op.history  # el historial se sigue guardando
     tr = expo.transistors  # type: ignore[attr-defined]
     expo.tabs.setCurrentWidget(tr)  # type: ignore[attr-defined]
@@ -227,3 +228,68 @@ def test_la_opcion_completo_esta_en_la_ayuda() -> None:
 
     salida = CliRunner().invoke(app, ["gui", "--help"]).output
     assert "--completo" in salida
+
+
+# ------------------------------------------------------------------ rueda y flechas
+def rueda(widget: QWidget, abajo: bool = True) -> None:
+    """Un giro de la rueda del ratón sobre ``widget``."""
+    from PySide6.QtCore import QPoint
+    from PySide6.QtGui import QWheelEvent
+
+    centro = QPointF(widget.rect().center())
+    giro = QPoint(0, -120 if abajo else 120)
+    evento = QWheelEvent(
+        centro,
+        QPointF(widget.mapToGlobal(centro.toPoint())),
+        QPoint(0, 0),
+        giro,
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.NoScrollPhase,
+        False,
+    )
+    QtWidgets.QApplication.sendEvent(widget, evento)
+
+
+def test_la_rueda_no_cambia_de_pestana_ni_de_valor(expo: object, qapp: object) -> None:
+    tabs = expo.tabs  # type: ignore[attr-defined]
+    for _ in range(3):
+        rueda(tabs.tabBar())
+    assert tabs.currentIndex() == 0
+    op = expo.operation  # type: ignore[attr-defined]
+    rueda(op.details.tabBar())
+    assert op.details.currentIndex() == 0
+    antes_motor, antes_periodo = op.engine_box.currentIndex(), op.period.value()
+    rueda(op.engine_box)
+    rueda(op.period)
+    assert op.engine_box.currentIndex() == antes_motor
+    assert op.period.value() == antes_periodo
+
+
+def test_flechas_visibles_y_sin_flecha_doble() -> None:
+    from pathlib import Path
+
+    from transim.ui.gui import theme
+
+    hoja = theme.stylesheet(theme.DARK)
+    arriba, abajo = theme.arrow_images(theme.DARK.text)
+    assert Path(arriba).is_file()
+    assert Path(abajo).is_file()
+    assert f"QSpinBox::up-arrow {{ image: url({arriba})" in hoja
+    assert f"QComboBox::down-arrow {{ image: url({abajo})" in hoja
+    assert "QToolButton::menu-indicator { image: none" in hoja.replace(
+        "QPushButton::menu-indicator, ", ""
+    )
+
+
+def test_operacion_repetida_lo_dice_en_la_propagacion(expo: object, qapp: object) -> None:
+    calcular(qapp, expo)
+    calcular(qapp, expo)  # la misma: no cambia nada
+    tr = expo.transistors  # type: ignore[attr-defined]
+    expo.tabs.setCurrentWidget(tr)  # type: ignore[attr-defined]
+    qapp.processEvents()  # type: ignore[attr-defined]
+    tr.show_propagation("mant_addsub", play=False)
+    assert "igual a la anterior" in tr.time_text.text()
+    expo.operation.a.set_text("1")  # type: ignore[attr-defined]
+    expo.operation.run()  # type: ignore[attr-defined]
+    esperar(qapp, lambda: not expo.operation._busy)  # type: ignore[attr-defined]

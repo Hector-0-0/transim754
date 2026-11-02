@@ -14,11 +14,15 @@ from dataclasses import dataclass
 from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import (
+    QAbstractSpinBox,
+    QApplication,
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QSizePolicy,
+    QTabBar,
     QToolTip,
     QVBoxLayout,
     QWidget,
@@ -773,6 +777,32 @@ class _ClickFilter(QObject):
         return False
 
 
+class WheelGuard(QObject):
+    """La rueda del ratón no cambia de pestaña ni cambia el valor de una lista o de un
+    cuadro numérico que no se eligió antes con un clic. Así, al desplazarse por la
+    ventana nada cambia sin querer."""
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:  # noqa: N802 - API de Qt
+        if event.type() != QEvent.Type.Wheel:
+            return False
+        if isinstance(obj, QTabBar):
+            return True
+        return isinstance(obj, QComboBox | QAbstractSpinBox) and not obj.hasFocus()
+
+
+_wheel_guard: WheelGuard | None = None
+
+
+def guard_wheel() -> None:
+    """Instala :class:`WheelGuard` en la aplicación (una sola vez)."""
+    global _wheel_guard
+    app = QApplication.instance()
+    if app is None or _wheel_guard is not None:
+        return
+    _wheel_guard = WheelGuard(app)
+    app.installEventFilter(_wheel_guard)
+
+
 __all__ = [
     "FLAG_CHIPS",
     "Bar",
@@ -785,8 +815,10 @@ __all__ = [
     "Segment",
     "Segmented",
     "StatTile",
+    "WheelGuard",
     "card",
     "flag_keys",
+    "guard_wheel",
     "hint",
     "stage_color",
     "thousands",

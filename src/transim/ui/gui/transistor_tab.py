@@ -897,9 +897,13 @@ class TransistorTab(QWidget):
         last = r.last_change(paths)
         worst = self._worst
         moving = len(self.scene.flash_cells & paths)
-        self.time_text.setText(
-            f"<b>Retardo {t} de {r.length}</b>. Este bloque termina en el retardo {last}."
-        )
+        if r.length == 0:
+            said = "Esta operación es igual a la anterior: no cambia nada."
+        elif last == 0:
+            said = "En esta operación este bloque no cambia."
+        else:
+            said = f"Este bloque termina en el retardo {last}."
+        self.time_text.setText(f"<b>Retardo {t} de {r.length}</b>. {said}")
         self.time_text.setToolTip(
             f"En este instante cambian {moving} celdas. El peor caso de la unidad es de "
             f"{worst} retardos (su camino crítico)."

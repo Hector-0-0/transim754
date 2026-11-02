@@ -7,7 +7,7 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
 ### Agregado
 - **Modo exposición** de la GUI (ADR-0019), el de `transim gui`: siempre oscuro, sin
-  menús, sin atajos con Ctrl, Alt o teclas F, sin la pestaña Programa, sin el historial
+  menús, sin atajos con Ctrl, Alt o teclas F, sin la pestaña Programa, sin Ejemplos ni historial
   y sin el panel de detalle de Transistores. Nada se elimina: `transim gui --completo`
   muestra todo. En Recorrido, un clic en las entradas vuelve al primer paso y uno en el
   resultado muestra todos.
@@ -103,6 +103,11 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   para organizar el trabajo en equipo.
 
 ### Corregido
+- La rueda del ratón cambiaba de pestaña y cambiaba el motor o el periodo de reloj al
+  pasar por encima; ahora solo cambia un valor si antes se hizo clic en él.
+- No se veían las flechas del periodo de reloj ni de la lista del motor, y «Ver ▾» y
+  «Ejemplos ▾» mostraban dos flechas. La propagación de un bloque que no cambia lo dice
+  en vez de «termina en el retardo 0».
 - Recorrido: el diagrama redibujaba la escena mientras la vista todavía procesaba el
   clic, y repintaba por partes. Ahora el clic termina antes de redibujar, la vista se
   repinta entera y las cajas de entradas y resultado se pintan sin depender del estado
