@@ -6,6 +6,11 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 ## [Sin publicar]
 
 ### Agregado
+- Recorrido explicado de la **multiplicación** (desempaquetar, producto de mantisas en el
+  arreglo, contar ceros, normalizar con el exponente ea + eb − sesgo + 1 − lz, redondear y
+  casos especiales) y de la **división** (normalizar operandos, cociente del divisor no
+  restaurador con su sticky y su exponente, redondear y casos especiales), con las
+  cuentas hechas con los bits de la simulación.
 - **Rejilla de bits** de un bloque (ADR-0018): en la vista Compuertas, cada celda en la
   columna de su bit y la fila de su nivel lógico, calculadas del netlist; la cadena de
   acarreo del sumador se ve como una escalera y los niveles del desplazador como filas

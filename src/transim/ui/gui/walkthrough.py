@@ -282,7 +282,8 @@ class _Story:
             power = self.power(e)
             exps.append(power)
             lines.append(f"{name} = {field}")
-            lines.append(f"    signo {s} · exponente {e} → {power}")
+            note = " (cero o subnormal: exponente mínimo)" if ef == 0 else ""
+            lines.append(f"    signo {s} · exponente {e} → {power}{note}")
             lines.append(f"    mantisa {mant}")
         text = (
             "Separa el signo, el exponente y la fracción de cada operando, y agrega el 1 "
@@ -292,6 +293,10 @@ class _Story:
         )
         if self.calc.op == "sub":
             text += " En la resta se invierte el signo de b: a − b = a + (−b)."
+        elif self.calc.op in ("mul", "div"):
+            sa, sb = self.get("unpack_a", "sign"), self.get("unpack_b", "sign")
+            text += " El signo del resultado es el XOR de los signos."
+            lines.append(f"signo = {sa} ⊕ {sb} = {sa ^ sb}")
         return f"exponentes {exps[0]} y {exps[1]}", text, "\n".join(lines)
 
     def order(self) -> tuple[str, str, str]:
@@ -474,21 +479,168 @@ class _Story:
         fl = res.flags
         raised = any((fl.invalid, fl.div_by_zero, fl.overflow, fl.underflow, fl.inexact))
         lines = [f"a: {classes[0]} · b: {classes[1]}"]
+        cases = "NaN o ∞" if self.calc.op in ("add", "sub") else "NaN, ∞ o 0"
         if special:
-            lines.append("caso especial (NaN o ∞): manda la tabla")
+            lines.append(f"caso especial ({cases}): manda la tabla")
         else:
             lines.append("sin caso especial: pasa el numérico")
         lines.append(f"resultado = {model.hex_text(f, res.bits)}")
         lines.append(f"          = {model.value_text(f, res.bits)}")
         lines.append(f"flags: {fl if raised else 'ninguno'}")
+        example = {
+            "add": "∞ − ∞ da NaN y levanta NV",
+            "sub": "∞ − ∞ da NaN y levanta NV",
+            "mul": "0 × ∞ da NaN y levanta NV; 0 × x da 0 con el signo del XOR",
+            "div": "x ÷ 0 da ∞ y levanta DZ; 0 ÷ 0 e ∞ ÷ ∞ dan NaN y levantan NV",
+        }[self.calc.op]
         text = (
             "En paralelo con todo lo anterior, un clasificador mira si cada operando es "
-            "cero, subnormal, normal, infinito o NaN. Si hay un NaN o un infinito, el "
-            "resultado sale de una tabla de casos especiales (por ejemplo ∞ − ∞ da NaN y "
-            "levanta NV); si no, un multiplexor deja pasar el resultado numérico."
+            f"cero, subnormal, normal, infinito o NaN. Si hay un caso especial ({cases}), "
+            f"el resultado sale de una tabla (por ejemplo, {example}); si no, un "
+            "multiplexor deja pasar el resultado numérico."
         )
         return f"= {model.value_text(f, res.bits)}", text, "\n".join(lines)
 
+    # ----------------------------------------------------------- multiplicación
+    def _signed(self, path: str, name: str) -> int:
+        """Valor en complemento a 2 de un bus (para el exponente con signo)."""
+        value, bits = self.get(path, name), self.width(path, name)
+        return value - (1 << bits) if value >> (bits - 1) else value
+
+    def mul_product(self) -> tuple[str, str, str]:
+        f = self.fmt
+        p = f.precision
+        ma, mb, prod = (self.get("mant_mul", k) for k in ("a", "b", "p"))
+        x_t, y_t = fixed([ma, mb], p, 1)
+        (p_t,) = fixed([prod], 2 * p, 2)
+        lines = [f"  X = {x_t}", f"× Y = {y_t}", f"  = {p_t}"]
+        text = (
+            f"Un multiplicador en arreglo: {p} × {p} = {p * p} compuertas AND forman los "
+            "productos parciales X·yⱼ (X corrido j lugares si el bit j de Y es 1) y "
+            f"{p - 1} filas de sumadores completos (FA) los van acumulando. El producto "
+            f"tiene {2 * p} bits con dos bits enteros, porque dos mantisas en [1, 2) dan un "
+            "producto en [1, 4)."
+        )
+        return f"= {short(p_t)}", text, "\n".join(lines)
+
+    def mul_lzc(self) -> tuple[str, str, str]:
+        n = self.width("lzc", "a")
+        prod, lz = self.get("lzc", "a"), self.get("lzc", "count")
+        (t,) = fixed([prod], n, 2)
+        lines = (
+            [t, "→ el producto es cero"] if prod == 0 else [t, f"→ {lz} ceros antes del primer 1"]
+        )
+        if prod and lz == 1:
+            lines[1] = "→ 1 cero antes del primer 1"
+        text = (
+            "Cuenta los ceros a la izquierda del producto. Si el producto es ≥ 2, el primer 1 "
+            "está en el primer bit (lz = 0); si es < 2, en el segundo (lz = 1). Con "
+            "operandos subnormales puede haber más ceros."
+        )
+        return f"lz = {lz}", text, "\n".join(lines)
+
+    def mul_normalize(self) -> tuple[str, str, str]:
+        f = self.fmt
+        n = self.width("normalize", "y")
+        prod, lz, norm = (self.get("normalize", k) for k in ("a", "sh", "y"))
+        ea, eb = self.get("unpack_a", "exp"), self.get("unpack_b", "exp")
+        e = self._signed("round", "e")
+        (before,) = fixed([prod], n, 2)
+        (after,) = fixed([norm], n, 1)
+        (mant,) = fixed([self.get("round", "m")], f.precision, 1)
+        g, r, s_ = (self.get("round", k) for k in ("g", "r", "s"))
+        if prod == 0:
+            return "producto 0", self.normalize_text(), "el producto es cero"
+        lines = [
+            f"producto = {short(before, 30)}",
+            f"<< {lz:<7}= {short(after, 30)}",
+            "exponente = ea + eb − sesgo + 1 − lz",
+            f"          = {ea} + {eb} − {f.bias} + 1 − {lz} = {e}",
+            f"mantisa   = {mant}",
+            f"G = {g} · R = {r} · S = {s_}",
+        ]
+        text = (
+            "Un desplazador de barril deja el primer 1 adelante (forma 1.xxx). El exponente "
+            "se calcula en paralelo con sumadores: los exponentes se suman y se resta un "
+            "sesgo, porque cada uno ya lo traía; el 1 − lz ajusta la posición de la coma. "
+            "Los bits que sobran dan G, R y S para redondear."
+        )
+        return f"<< {lz} · e = {e}", text, "\n".join(lines)
+
+    # ----------------------------------------------------------------- división
+    def div_normalize(self) -> tuple[str, str, str]:
+        f = self.fmt
+        p = f.precision
+        lines = []
+        shifts = []
+        for tag in ("a", "b"):
+            m, lz = self.get(f"lzc_{tag}", "a"), self.get(f"lzc_{tag}", "count")
+            norm = self.get(f"normalize_{tag}", "y")
+            before, after = fixed([m, norm], p, 1)
+            shifts.append(lz)
+            lines.append(f"{tag}: {short(before, 28)} << {lz}")
+            lines.append(f"   = {short(after, 28)}")
+        text = (
+            "El divisor necesita mantisas que empiecen en 1. Si un operando es subnormal, su "
+            "mantisa empieza con ceros: un contador de ceros y un desplazador la corren a la "
+            "izquierda y su exponente baja en lo mismo. Con números normales no hay nada que "
+            "correr (lz = 0)."
+        )
+        summary = "sin cambio" if not any(shifts) else f"<< {shifts[0]} y << {shifts[1]}"
+        return summary, text, "\n".join(lines)
+
+    def div_quotient(self) -> tuple[str, str, str]:
+        f = self.fmt
+        p = f.precision
+        na, nb = self.get("mant_div", "a"), self.get("mant_div", "b")
+        q, rest = self.get("mant_div", "q"), self.get("mant_div", "sticky")
+        qb = self.width("mant_div", "q")
+        x_t, y_t = fixed([na, nb], p, 1)
+        (q_t,) = fixed([q], qb, 1)
+        top = q >> (qb - 1)
+        ea, eb = self.get("unpack_a", "exp"), self.get("unpack_b", "exp")
+        e = self._signed("round", "e")
+        lines = [
+            f"  X = {short(x_t, 30)}",
+            f"÷ Y = {short(y_t, 30)}",
+            f"  = {short(q_t, 30)}",
+            f"resto ≠ 0: {'sí' if rest else 'no'} → sticky = {rest}",
+            f"bit alto = {top}: " + ("cociente ≥ 1" if top else "cociente < 1, se corre 1"),
+            f"exponente = ea − eb + sesgo − 1 + {top}",
+            f"          = {ea} − {eb} + {f.bias} − 1 + {top} = {e}",
+        ]
+        text = (
+            f"Un divisor no restaurador de {qb} filas. Cada fila suma o resta el divisor al "
+            "resto parcial según el signo del resto anterior (XOR + FA) y da un bit del "
+            "cociente: 1 si el nuevo resto es ≥ 0. Si al final queda resto, el resultado no "
+            "es exacto y eso va al bit sticky. El exponente es la resta de exponentes más el "
+            "sesgo."
+        )
+        return f"= {short(q_t)}", text, "\n".join(lines)
+
+
+MUL: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("unpack_a", ("unpack_a", "unpack_b"), "Desempaquetar"),
+    ("mant_mul", ("mant_mul",), "Multiplicar mantisas"),
+    ("lzc", ("lzc",), "Contar ceros"),
+    ("normalize", ("normalize",), "Normalizar"),
+    ("round", ("round",), "Redondear y empaquetar"),
+    ("special", ("class_a", "class_b", "special"), "Casos especiales"),
+)
+"""Pasos de la multiplicación."""
+
+DIV: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("unpack_a", ("unpack_a", "unpack_b"), "Desempaquetar"),
+    (
+        "normalize_a",
+        ("lzc_a", "lzc_b", "normalize_a", "normalize_b"),
+        "Normalizar operandos",
+    ),
+    ("mant_div", ("mant_div",), "Dividir mantisas"),
+    ("round", ("round",), "Redondear y empaquetar"),
+    ("special", ("class_a", "class_b", "special"), "Casos especiales"),
+)
+"""Pasos de la división."""
 
 ADDSUB: tuple[tuple[str, tuple[str, ...], str], ...] = (
     ("unpack_a", ("unpack_a", "unpack_b"), "Desempaquetar"),
@@ -558,12 +710,24 @@ def build(calc: model.Calculation) -> Walkthrough:
     g = graph(netlist)
     by_path = {i.path: i for i in g.blocks}
     steps: list[Step] = []
-    narrated = calc.op in ("add", "sub") and all(
-        p in by_path for _, paths, _ in ADDSUB for p in paths
-    )
+    plan = {"add": ADDSUB, "sub": ADDSUB, "mul": MUL, "div": DIV}.get(calc.op, ())
+    narrated = bool(plan) and all(p in by_path for _, paths, _ in plan for p in paths)
     if narrated:
         story = _Story(calc, read, netlist)
-        for key, paths, title in ADDSUB:
+        methods = {
+            "unpack_a": story.unpack,
+            "order": story.order,
+            "exp_diff": story.exp_diff,
+            "align": story.align,
+            "lzc": story.mul_lzc if calc.op == "mul" else story.lzc,
+            "normalize": story.mul_normalize if calc.op == "mul" else story.normalize,
+            "round": story.round,
+            "special": story.special,
+            "mant_mul": story.mul_product,
+            "normalize_a": story.div_normalize,
+            "mant_div": story.div_quotient,
+        }
+        for key, paths, title in plan:
             ins: list[Port] = []
             outs: list[Port] = []
             for p in paths:
@@ -575,17 +739,7 @@ def build(calc: model.Calculation) -> Walkthrough:
                 if key == "mant_addsub":
                     title, summary, text, detail = story.addsub()
                 else:
-                    method = {
-                        "unpack_a": story.unpack,
-                        "order": story.order,
-                        "exp_diff": story.exp_diff,
-                        "align": story.align,
-                        "lzc": story.lzc,
-                        "normalize": story.normalize,
-                        "round": story.round,
-                        "special": story.special,
-                    }[key]
-                    summary, text, detail = method()
+                    summary, text, detail = methods[key]()
                 if key not in ("unpack_a", "special") and story.is_special:
                     text += (
                         " En esta operación hay un caso especial: el resultado numérico de "
@@ -612,4 +766,16 @@ def build(calc: model.Calculation) -> Walkthrough:
     )
 
 
-__all__ = ["ADDSUB", "Graph", "Port", "Step", "Walkthrough", "build", "fixed", "graph", "ports"]
+__all__ = [
+    "ADDSUB",
+    "DIV",
+    "MUL",
+    "Graph",
+    "Port",
+    "Step",
+    "Walkthrough",
+    "build",
+    "fixed",
+    "graph",
+    "ports",
+]
