@@ -4,6 +4,32 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-11-02 · Vista de compuertas y esquema más limpio
+
+**Hecho**
+- PR #52 (Recorrido) integrado a `main`.
+- Vista **Compuertas** (ADR-0016): cada etapa CMOS como la compuerta que implementa,
+  deducida de su red pull-down (serie = AND, paralelo = OR, salida negada). XOR2 = 2
+  inversores + AOI; FA = 2 compuertas complejas + 2 inversores (es un sumador espejo);
+  MUX2 y DLATCH con transmission gates. Es la vista inicial de una celda.
+- «Qué está pasando» en Transistores: fórmula de cada etapa con sus valores y qué red
+  conduce; el paso a paso de la celda la narra. Doble clic en una compuerta abre sus
+  transistores con la etapa resaltada.
+- Esquema: fondo de las redes pull-up y pull-down con su nombre, cables en 1 gruesos,
+  nombres de transistores solo al pasar el ratón, sin recuadros verdes por defecto.
+- Barra: Compuertas · Transistores · Silicio; opciones y exportar en «Ver ▾»; panel
+  izquierdo plegable (☰, Ctrl+F), oculto al ver una operación.
+
+**Corregido**
+- MUX2 en compuertas: las dos transmission gates manejan el mismo nodo y solo se cableaba
+  la primera. Ahora se unen todas las fuentes de un nodo; hay una prueba que lo cubre.
+
+**Siguiente**
+- Plano del chip limpio (bloques del tamaño de sus transistores) y celda junto a su
+  silicio, quitando las filas a rayas.
+
+---
+
 ## 2026-11-01 · Pestaña Recorrido: la operación paso a paso
 
 **Hecho**

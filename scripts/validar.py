@@ -163,6 +163,7 @@ MODULOS: dict[str, Modulo] = {
             "tests/ui/test_modelo.py",
             "tests/ui/test_pasos_y_flujo.py",
             "tests/ui/test_recorrido.py",
+            "tests/ui/test_compuertas.py",
         ],
         [25, 26],
         ["src/transim/ui/gui"],

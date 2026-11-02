@@ -70,6 +70,7 @@ class CrossSection(QWidget):
     def show_device(self, device: Device | None, flowing: bool = False) -> None:
         """Dibuja ``device``; con ``flowing`` anima los portadores a lo largo del canal."""
         self.device = device
+        self.setVisible(device is not None)  # sin transistor no ocupa lugar en el panel
         self.flowing = flowing and device is not None and device.state is Conduction.ON
         animate = device is not None and device.state is Conduction.ON
         if animate and not self._timer.isActive():

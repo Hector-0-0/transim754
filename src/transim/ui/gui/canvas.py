@@ -29,6 +29,7 @@ from PySide6.QtGui import (
     QFontMetricsF,
     QMouseEvent,
     QPainter,
+    QPainterPath,
     QPen,
     QTransform,
     QWheelEvent,
@@ -44,7 +45,7 @@ from PySide6.QtWidgets import (
 
 from transim.core.signals import Logic
 from transim.core.transistor import Conduction
-from transim.ui.gui import silicon
+from transim.ui.gui import gates, silicon
 from transim.ui.gui import theme as th
 from transim.ui.gui.circuit import Binding, ValueReader, active_path
 from transim.ui.gui.schematic import (
@@ -78,6 +79,8 @@ PIN_FONT = _font(6.5, bold=True)
 # Las capas usan tonos que no son los de los valores lógicos (rojo = 1, azul = 0, verde =
 # conduce): así un mismo color no significa dos cosas en el esquema y en el silicio.
 DIM_OPACITY = 0.16
+GATE_MARGIN = 4.0
+"""Margen alrededor de una compuerta para el ratón y el resaltado."""
 """Opacidad de lo que no forma parte del paso mostrado en el esquema."""
 
 LAYER_COLOR = {
@@ -145,10 +148,12 @@ class Hit:
     """
 
     item: CellItem
-    kind: str  # "transistor" | "node" | "input" | "cell"
+    kind: str  # "transistor" | "node" | "input" | "gate" | "cell"
     transistor: int | None = None
     node: int | None = None
     port: str | None = None
+    element: int | None = None
+    """Elemento de la celda (etapa o transmission gate) en la vista de compuertas."""
 
     @property
     def binding(self) -> Binding:
@@ -266,6 +271,11 @@ class SchematicItem(CellItem):
             self._paint_far(painter, t, state, rect)
             self._paint_heat(painter, rect)
             return
+        for band in self.geo.bands:
+            tint = t.one if band.kind == "up" else t.zero
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(alpha(tint, 22 if t.dark else 16)))
+            painter.drawRect(QRectF(band.x0, band.y0, band.x1 - band.x0, band.y1 - band.y0))
         self._paint_halos(painter, t, state, value)
         for s in self.geo.rails:
             painter.setPen(pen(t.logic(value(s.node)), 3.2))
@@ -286,7 +296,7 @@ class SchematicItem(CellItem):
             elif toggled and self.node_id(s.node) in toggled:
                 painter.setPen(pen(alpha("#ff9f1a", 110), 7))
                 painter.drawLine(QPointF(s.x1, s.y1), QPointF(s.x2, s.y2))
-            painter.setPen(pen(t.logic(value(s.node)), 2.2))
+            painter.setPen(wire_pen(t, value(s.node)))
             painter.drawLine(QPointF(s.x1, s.y1), QPointF(s.x2, s.y2))
         painter.setPen(Qt.PenStyle.NoPen)
         for j in self.geo.joints:
@@ -386,9 +396,9 @@ class SchematicItem(CellItem):
             painter.setBrush(QBrush(alpha(t.select, 64 if sel else 36)))
             painter.drawRoundedRect(QRectF(GATE_X - 4, -4, -GATE_X + 12, DEV_H + 8.0), 7, 7)
         top, bottom, gate = value(d.top), value(d.bottom), value(d.gate)
-        painter.setPen(pen(t.logic(top), 2.2))
+        painter.setPen(wire_pen(t, top))
         painter.drawPolyline([QPointF(0, 0), QPointF(0, LEAD_Y), QPointF(CHANNEL_X, LEAD_Y)])
-        painter.setPen(pen(t.logic(bottom), 2.2))
+        painter.setPen(wire_pen(t, bottom))
         painter.drawPolyline(
             [QPointF(CHANNEL_X, DEV_H - LEAD_Y), QPointF(0, DEV_H - LEAD_Y), QPointF(0, DEV_H)]
         )
@@ -417,7 +427,7 @@ class SchematicItem(CellItem):
             painter.setBrush(QBrush(QColor(t.paper)))
             painter.drawEllipse(QPointF(PLATE_X - 5, GATE_Y), 4.0, 4.0)
             lead_end = PLATE_X - 9
-        painter.setPen(pen(t.logic(gate), 2.2))
+        painter.setPen(wire_pen(t, gate))
         painter.drawLine(QPointF(GATE_X, GATE_Y), QPointF(lead_end, GATE_Y))
         painter.restore()
 
@@ -428,7 +438,22 @@ class SchematicItem(CellItem):
         value: Callable[[int], Logic],
         local_hover: int | None,
     ) -> None:
+        shown: set[str] = set()  # nombres de transistores: solo el del ratón o el elegido
+        names = self.binding.circuit.transistors
+        for owner, index in (
+            (self.board.hover_item, self.board.hover_transistor),
+            (self.board.selected_item, self.board.selected_transistor),
+        ):
+            if owner is self and index is not None:
+                shown.add(names[index].name)
         for text in self.geo.texts:
+            if text.kind == "name" and text.text not in shown:
+                continue
+            if text.kind == "band":
+                painter.setFont(SMALL_FONT)
+                painter.setPen(pen(t.muted, 1))
+                painter.drawText(QPointF(text.x, text.y + 4), text.text)
+                continue
             if text.kind == "title":
                 painter.setFont(TITLE_FONT)
                 painter.setPen(pen(t.ink, 1))
@@ -825,6 +850,226 @@ class FrameItem(QGraphicsItem):
 
 
 # ------------------------------------------------------------------- escena
+# ---------------------------------------------------------------- compuertas
+def wire_pen(t: th.Theme, v: Logic) -> QPen:
+    """Cable con su valor: un 1 se dibuja grueso para que se vea de lejos."""
+    width = 2.8 if v is Logic.ONE else 1.6
+    style = Qt.PenStyle.DashLine if v in (Logic.X, Logic.Z) else Qt.PenStyle.SolidLine
+    return pen(t.logic(v), width, style)
+
+
+class GateItem(CellItem):
+    """Una celda pintada como compuertas lógicas, una por etapa CMOS."""
+
+    def __init__(self, binding: Binding, title: str, board: CircuitScene) -> None:
+        super().__init__(binding, title, board)
+        self.gates = gates.cell_gates(binding.netlist)
+        self.geo: gates.GateDiagram = gates.layout(binding.netlist, measure)
+
+    def boundingRect(self) -> QRectF:  # noqa: N802 - API de Qt
+        return QRectF(-4, -4, self.geo.width + 8.0, self.geo.height + 8.0)
+
+    def _gate_rect(self, b: gates.Box) -> QRectF:
+        right = b.out[0]
+        return QRectF(
+            b.x - gates.STUB, b.y - GATE_MARGIN, right - b.x + gates.STUB, b.h + 2 * GATE_MARGIN
+        )
+
+    def transistor_rect(self, index: int) -> QRectF:
+        for b in self.geo.boxes:
+            if index in b.gate.transistors:
+                return self._gate_rect(b)
+        return QRectF()
+
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionGraphicsItem,
+        widget: QWidget | None = None,
+    ) -> None:
+        t = th.current()
+        if self.board.values is None:
+            return
+        rect = QRectF(0, 0, self.geo.width, self.geo.height)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(pen(t.frame, 1.2))
+        painter.setBrush(QBrush(QColor(t.paper)))
+        painter.drawRoundedRect(rect, 10, 10)
+        if self.board.selected_item is self and self.board.selected_transistor is None:
+            painter.setPen(pen(t.select, 2.5))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(rect.adjusted(-3, -3, 3, 3), 12, 12)
+        value = self.value_fn()
+        hover_node = self.board.hover_node
+        local_hover = self.local_node(hover_node) if hover_node is not None else None
+        focus = self.board.step_filter
+        toggled = self.board.toggled_nodes if self.board.show_toggles else set()
+
+        def lit_node(n: int) -> bool:
+            return focus is None or n in focus[1]
+
+        def lit_gate(g: gates.Gate) -> bool:
+            return focus is None or set(g.transistors) <= focus[0]
+
+        painter.setFont(TITLE_FONT)
+        painter.setPen(pen(t.ink, 1))
+        painter.drawText(QPointF(gates.PAD, gates.PAD + 6), self.title)
+
+        for w in self.geo.wires:
+            painter.setOpacity(1.0 if lit_node(w.node) else DIM_OPACITY)
+            a, b = QPointF(w.x1, w.y1), QPointF(w.x2, w.y2)
+            if local_hover is not None and w.node == local_hover:
+                painter.setPen(pen(alpha(t.halo, 170), 9))
+                painter.drawLine(a, b)
+            elif toggled and self.node_id(w.node) in toggled:
+                painter.setPen(pen(alpha("#ff9f1a", 110), 7))
+                painter.drawLine(a, b)
+            painter.setPen(wire_pen(t, value(w.node)))
+            painter.drawLine(a, b)
+        painter.setPen(Qt.PenStyle.NoPen)
+        for d in self.geo.dots:
+            painter.setOpacity(1.0 if lit_node(d.node) else DIM_OPACITY)
+            painter.setBrush(QBrush(t.logic(value(d.node))))
+            painter.drawEllipse(QPointF(d.x, d.y), 3.4, 3.4)
+        for k, box in enumerate(self.geo.boxes):
+            painter.setOpacity(1.0 if lit_gate(box.gate) else DIM_OPACITY)
+            self._paint_gate(painter, t, k, box, value)
+        painter.setOpacity(1.0)
+        for p in self.geo.ports:
+            label(
+                painter,
+                t,
+                p.name,
+                p.x + 6 if p.output else p.x - 6,
+                p.y,
+                "left" if p.output else "right",
+                value(p.node),
+                "pin_out" if p.output else "pin_in",
+                p.node == local_hover,
+                clickable=self.node_id(p.node) in self.board.clickable_nodes,
+            )
+        self._paint_heat(painter, rect)
+
+    def _paint_gate(
+        self,
+        painter: QPainter,
+        t: th.Theme,
+        k: int,
+        box: gates.Box,
+        value: Callable[[int], Logic],
+    ) -> None:
+        g = box.gate
+        hov = self.board.hover_item is self and self.board.hover_element == g.element
+        sel = (
+            self.board.selected_item is self
+            and self.board.selected_transistor is not None
+            and self.board.selected_transistor in g.transistors
+        )
+        if hov or sel:
+            painter.setPen(pen(t.select, 1.6) if sel else Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(alpha(t.select, 60 if sel else 34)))
+            painter.drawRoundedRect(self._gate_rect(box).adjusted(-4, -4, 4, 4), 7.5, 7.5)
+        # Pines de entrada y de salida, con el valor de su cable.
+        for p, n in enumerate(g.inputs):
+            px, py = box.pin(p)
+            reach = box.x + (5.0 if g.kind == "NOR" else 0.0)
+            painter.setPen(wire_pen(t, value(n)))
+            painter.drawLine(QPointF(px, py), QPointF(reach, py))
+        out = value(g.output) if g.output >= 0 else Logic.X
+        ox, oy = box.out
+        body_right = box.x + box.w + (2 * gates.BUBBLE if g.inverting else 0.0)
+        painter.setPen(wire_pen(t, out))
+        painter.drawLine(QPointF(body_right, oy), QPointF(ox, oy))
+        # Cuerpo.
+        x, y, w, h = box.x, box.y, box.w, box.h
+        path = QPainterPath()
+        if g.kind == "INV":
+            path.moveTo(x, y)
+            path.lineTo(x + w, y + h / 2)
+            path.lineTo(x, y + h)
+            path.closeSubpath()
+        elif g.kind == "NAND":
+            path.moveTo(x, y)
+            path.lineTo(x + w - h / 2, y)
+            path.arcTo(QRectF(x + w - h, y, h, h), 90, -180)
+            path.lineTo(x, y + h)
+            path.closeSubpath()
+        elif g.kind == "NOR":
+            path.moveTo(x, y)
+            path.quadTo(x + w * 0.6, y, x + w, y + h / 2)
+            path.quadTo(x + w * 0.6, y + h, x, y + h)
+            path.quadTo(x + w * 0.28, y + h / 2, x, y)
+        else:
+            path.addRoundedRect(QRectF(x, y, w, h), 7, 7)
+        painter.setBrush(QBrush(QColor(t.surface)))
+        border = pen(t.ink, 1.7)
+        if g.kind == "RED":
+            border.setStyle(Qt.PenStyle.DashLine)
+        painter.setPen(border)
+        painter.drawPath(path)
+        if g.inverting:
+            painter.setBrush(QBrush(QColor(t.surface)))
+            painter.drawEllipse(
+                QPointF(x + w + gates.BUBBLE, y + h / 2), gates.BUBBLE, gates.BUBBLE
+            )
+        # Texto dentro de las compuertas de recuadro.
+        if g.kind in ("AOI", "OAI", "COMPLEJA", "RED"):
+            painter.setFont(LABEL_FONT)
+            painter.setPen(pen(t.ink, 1))
+            painter.drawText(QRectF(x, y, w, h), Qt.AlignmentFlag.AlignCenter, g.expression)
+            painter.setFont(SMALL_FONT)
+            painter.setPen(pen(t.muted, 1))
+            painter.drawText(QPointF(x + 2, y - 4), gates.symbol_name(g.kind))
+        elif g.kind == "TG":
+            painter.setFont(TITLE_FONT)
+            painter.setPen(pen(t.ink, 1))
+            painter.drawText(QRectF(x, y, w, h), Qt.AlignmentFlag.AlignCenter, "TG")
+            painter.setFont(PIN_FONT)
+            painter.setPen(pen(t.muted, 1))
+            for p, name in enumerate(g.pins):
+                px, py = box.pin(p)
+                painter.drawText(QPointF(x + 3, py + 3), name)
+        # Debajo, la fórmula (las compuertas de recuadro ya la llevan dentro: solo la salida).
+        name = self.binding.circuit.label(g.output) if g.output >= 0 else ""
+        boxed = g.kind in ("AOI", "OAI", "COMPLEJA", "RED")
+        caption = f"→ {name}" if boxed else f"{name} = {g.expression}" if name else ""
+        painter.setFont(SMALL_FONT)
+        painter.setPen(pen(t.muted, 1))
+        fm = QFontMetricsF(SMALL_FONT)
+        cx = x + w / 2 - fm.horizontalAdvance(caption) / 2
+        painter.drawText(QPointF(max(x - gates.STUB, cx), y + h + 13), caption)
+
+    def hit(self, pos: QPointF) -> Hit | None:
+        x, y = pos.x(), pos.y()
+        for p in self.geo.ports:
+            w = measure(p.name) + 24
+            x0 = p.x + 2 if p.output else p.x - 6 - w
+            if x0 <= x <= x0 + w and abs(y - p.y) <= 10:
+                real = self.node_id(p.node)
+                if real in self.board.clickable_nodes:
+                    return Hit(self, "input", node=real, port=self.input_port(p.node))
+                return Hit(self, "node", node=real)
+        for b in self.geo.boxes:
+            if self._gate_rect(b).contains(pos):
+                out = self.node_id(b.gate.output) if b.gate.output >= 0 else None
+                return Hit(self, "gate", node=out, element=b.gate.element)
+        best: tuple[float, int] | None = None
+        for s in self.geo.wires:
+            dist = _dist(x, y, s.x1, s.y1, s.x2, s.y2)
+            if dist <= 5 and (best is None or dist < best[0]):
+                best = (dist, s.node)
+        if best is not None:
+            return Hit(self, "node", node=self.node_id(best[1]))
+        return Hit(self, "cell")
+
+    def gate_center(self, element: int) -> QPointF:
+        """Centro de la compuerta del elemento ``element``, en la escena (para pruebas)."""
+        for b in self.geo.boxes:
+            if b.gate.element == element:
+                return self.mapToScene(QPointF(b.x + b.w / 2, b.y + b.h / 2))
+        return self.mapToScene(QPointF())
+
+
 class CircuitScene(QGraphicsScene):
     """Escena con una o varias celdas y el estado de su motor."""
 
@@ -839,6 +1084,7 @@ class CircuitScene(QGraphicsScene):
         self.hover_node: int | None = None
         self.hover_item: CellItem | None = None
         self.hover_transistor: int | None = None
+        self.hover_element: int | None = None
         self.selected_item: CellItem | None = None
         self.selected_transistor: int | None = None
         self.clickable_nodes: set[int] = set()
@@ -879,6 +1125,7 @@ class CircuitScene(QGraphicsScene):
         self.cells = []
         self.flows = {}
         self.hover_node = self.hover_item = self.hover_transistor = None
+        self.hover_element = None
         self.selected_item = self.selected_transistor = None
         self.values = values
         self.clickable_nodes = set(clickable)
@@ -903,6 +1150,29 @@ class CircuitScene(QGraphicsScene):
         """Dibuja ``cells`` (enlace, título) como esquemas, en filas."""
         self._reset(values, clickable or set(), "schematic")
         items = [SchematicItem(b, title, self) for b, title in cells]
+        area = sum(i.geo.width * i.geo.height for i in items)
+        max_w = max([i.geo.width for i in items] + [math.sqrt(area) * 1.5]) if items else 0
+        x = y = row_h = 0.0
+        for item in items:
+            if x > 0 and x + item.geo.width > max_w:
+                x, y, row_h = 0.0, y + row_h + 26, 0.0
+            item.setPos(x, y)
+            self.addItem(item)
+            x += item.geo.width + 26
+            row_h = max(row_h, item.geo.height)
+        self.cells = list(items)
+        self._index()
+
+    def show_gates(
+        self,
+        cells: Sequence[tuple[Binding, str]],
+        values: ValueReader,
+        *,
+        clickable: set[int] | None = None,
+    ) -> None:
+        """Dibuja ``cells`` (enlace, título) como compuertas lógicas, en filas."""
+        self._reset(values, clickable or set(), "gates")
+        items = [GateItem(b, title, self) for b, title in cells]
         area = sum(i.geo.width * i.geo.height for i in items)
         max_w = max([i.geo.width for i in items] + [math.sqrt(area) * 1.5]) if items else 0
         x = y = row_h = 0.0
@@ -980,7 +1250,13 @@ class CircuitScene(QGraphicsScene):
         node = hit.node if hit is not None and hit.kind in ("node", "input") else None
         item = hit.item if hit is not None else None
         transistor = hit.transistor if hit is not None else None
-        if (node, item, transistor) == (self.hover_node, self.hover_item, self.hover_transistor):
+        element = hit.element if hit is not None else None
+        if (node, item, transistor, element) == (
+            self.hover_node,
+            self.hover_item,
+            self.hover_transistor,
+            self.hover_element,
+        ):
             return
         touched: set[CellItem] = set()
         for n in (self.hover_node, node):
@@ -988,6 +1264,7 @@ class CircuitScene(QGraphicsScene):
                 touched |= set(self._by_node.get(n, []))
         touched |= {i for i in (self.hover_item, item) if i is not None}
         self.hover_node, self.hover_item, self.hover_transistor = node, item, transistor
+        self.hover_element = element
         for i in touched:
             i.update()
         self.hovered.emit(hit)

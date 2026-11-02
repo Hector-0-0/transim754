@@ -110,15 +110,22 @@ entrada (a la izquierda, en la tabla de verdad o en el dibujo) y mire qué canal
 abren y cuáles se cierran; los puntos amarillos son la corriente que carga o descarga
 la salida.</li>
 <li><b>Última operación</b>: la unidad que hizo el cálculo. La unidad muestra el chip
-completo; un bloque, sus celdas; una celda, sus transistores.</li>
-<li><b>Esquema</b> dibuja el circuito CMOS: pMOS arriba (a VDD), nMOS abajo (a GND).
-Canal continuo: conduce; cortado: no conduce. Fondo verde: el camino que fija la
-salida.</li>
+completo; un bloque, sus celdas; una celda, sus compuertas y sus transistores. El
+panel de la izquierda se abre con ☰ o Ctrl+F (buscar).</li>
+<li><b>Compuertas</b> muestra qué función calcula cada etapa CMOS de la celda (inversor,
+NAND, NOR o compuerta compleja), deducida de sus transistores. El panel <b>Qué está
+pasando</b> escribe cada fórmula con sus valores. Doble clic en una compuerta para ver
+sus transistores.</li>
+<li><b>Transistores</b> dibuja el circuito CMOS: la red pull-up de pMOS (fondo rojizo)
+lleva la salida a 1 y la pull-down de nMOS (fondo azulado) a 0. Canal continuo:
+conduce; cortado: no conduce. <b>Paso a paso</b> recorre las etapas en orden.</li>
+<li><b>Ver ▾</b>: camino activo, conmutaciones, mapa de actividad, color por valor y
+exportar la imagen.</li>
 <li><b>Silicio</b> dibuja cómo se vería en el chip: difusión p+ (ocre) dentro del pozo
 n, difusión n+ (verde), polisilicio (rojo), metal 1 (azul) y metal 2 (violeta). El canal
 de un transistor que conduce se ilumina en verde.</li>
-<li>El <b>inspector</b> (derecha) muestra el corte transversal del transistor bajo el
-ratón: la capa de inversión aparece cuando conduce.</li>
+<li>A la derecha, <b>Qué está pasando</b> muestra el corte transversal del transistor
+bajo el ratón: la capa de inversión aparece cuando conduce.</li>
 </ul>
 
 <h3>Ratón y teclado en el dibujo</h3>
@@ -132,7 +139,8 @@ en el fondo, ajustar</td></tr>
 <tr><td>Clic derecho</td><td>menú (abrir, subir, cambiar de vista, exportar)</td></tr>
 <tr><td>Esc · Retroceso · Ctrl+0</td><td>soltar la selección · subir un nivel ·
 ajustar</td></tr>
-<tr><td>Alt+E · Alt+S</td><td>vista Esquema · vista Silicio</td></tr>
+<tr><td>Alt+C · Alt+E · Alt+S</td><td>vista Compuertas · Transistores · Silicio</td></tr>
+<tr><td>Ctrl+F</td><td>buscar una instancia o celda</td></tr>
 </table>
 
 <h3>Pestaña Programa: la FPU dentro de una CPU</h3>

@@ -174,6 +174,7 @@ def test_biblioteca_clic_en_una_entrada_del_dibujo(ventana: object, qapp: object
     ventana.tabs.setCurrentWidget(ventana.transistors)  # type: ignore[attr-defined]
     tr = ventana.transistors  # type: ignore[attr-defined]
     tr.library.select("NAND2")
+    tr.mode.set_value("schematic", emit=True)
     qapp.processEvents()  # type: ignore[attr-defined]
     item = tr.scene.cells[0]
     texto = next(t for t in item.geo.texts if t.kind == "gate" and t.text == "a")
@@ -186,6 +187,7 @@ def test_biblioteca_clic_en_una_entrada_del_dibujo(ventana: object, qapp: object
 def test_cambiar_una_entrada_anima_la_corriente(ventana: object, qapp: object) -> None:
     tr = ventana.transistors  # type: ignore[attr-defined]
     tr.library.select("INV")
+    tr.mode.set_value("schematic", emit=True)
     tr.library.toggle("a")  # la salida baja de 1 a 0: se descarga por el nMOS
     assert tr.scene.flows
     (transistores,) = tr.scene.flows.values()
@@ -219,6 +221,7 @@ def test_clic_en_transistor_y_esc(ventana: object, qapp: object) -> None:
     tr = ventana.transistors  # type: ignore[attr-defined]
     ventana.tabs.setCurrentWidget(ventana.transistors)  # type: ignore[attr-defined]
     tr.library.select("INV")
+    tr.mode.set_value("schematic", emit=True)
     qapp.processEvents()  # type: ignore[attr-defined]
     item = tr.scene.cells[0]
     d = item.geo.devices[0]
@@ -521,7 +524,8 @@ def test_paso_a_paso_resalta_y_atenua(ventana: object, qapp: object) -> None:
     transistores, _nodos = filtro
     assert transistores == tr.steps[0].transistors
     assert tr.step_pos == 0
-    assert tr.step_text.text().startswith("Etapa 1 de")
+    assert "Etapa 1 de 3" in tr.step_text.text()
+    assert "an = ¬a" in tr.step_text.text()
     tr.step_all.click()
     assert tr.scene.step_filter is None
 
@@ -617,3 +621,101 @@ def test_recorrido_conserva_el_paso_al_recalcular(ventana: object, qapp: object)
     calcular(qapp, ventana)
     assert rec.index == 0  # otra unidad: vuelve al inicio
     assert "bloques en orden de flujo" in rec.subtitle.text()
+
+
+# ---------------------------------------------------------------- compuertas
+def test_compuertas_es_la_vista_inicial_de_una_celda(ventana: object, qapp: object) -> None:
+    from transim.ui.gui.canvas import GateItem
+
+    tr = ventana.transistors  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(tr)  # type: ignore[attr-defined]
+    tr.library.select("XOR2")
+    qapp.processEvents()  # type: ignore[attr-defined]
+    assert tr.mode.value() == "gates"
+    (item,) = tr.scene.cells
+    assert isinstance(item, GateItem)
+    assert [g.title for g in item.gates] == ["INV", "INV", "AOI"]
+    # «Qué está pasando» explica cada etapa con los valores de ahora.
+    cuerpo = tr.inspector.body.text()
+    assert "an = ¬a = ¬0 = 1" in cuerpo
+    assert "y = ¬(a·b + an·bn)" in cuerpo
+
+
+def test_compuertas_clic_en_una_entrada(ventana: object, qapp: object) -> None:
+    tr = ventana.transistors  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(tr)  # type: ignore[attr-defined]
+    tr.library.select("NAND2")
+    qapp.processEvents()  # type: ignore[attr-defined]
+    item = tr.scene.cells[0]
+    puerto = next(p for p in item.geo.ports if p.name == "b")
+    clic_en(tr.view, item.mapToScene(QPointF(puerto.x - 14, puerto.y)))
+    assert tr.library.inputs()["b"] == 1
+
+
+def test_compuertas_inspector_y_doble_clic(ventana: object, qapp: object) -> None:
+    tr = ventana.transistors  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(tr)  # type: ignore[attr-defined]
+    tr.library.select("FA")
+    qapp.processEvents()  # type: ignore[attr-defined]
+    item = tr.scene.cells[0]
+    primera = item.gates[0]
+    centro = item.gate_center(primera.element)
+    hit = tr.view.hit_at(QPointF(tr.view.mapFromScene(centro)))
+    assert hit is not None
+    assert hit.kind == "gate"
+    tr._hover(hit)
+    assert "compuerta compleja" in tr.inspector.title.text()
+    assert "coutn = ¬(a·b + cin·(a + b))" in tr.inspector.body.text()
+    clic_en(tr.view, centro, doble=True)
+    assert tr.mode.value() == "schematic"
+    assert tr.scene.step_filter is not None
+    assert tr.scene.step_filter[0] == frozenset(primera.transistors)
+
+
+def test_paso_a_paso_tambien_en_compuertas(ventana: object, qapp: object) -> None:
+    tr = ventana.transistors  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(tr)  # type: ignore[attr-defined]
+    tr.library.select("AND2")
+    qapp.processEvents()  # type: ignore[attr-defined]
+    assert not tr.step_row.isHidden()
+    tr.step_next.click()
+    tr.step_next.click()
+    assert "y = ¬yn" in tr.step_text.text()
+    assert "Etapa 2 de 2" in tr.step_text.text()
+
+
+def test_atajos_de_vista_y_panel(ventana: object, qapp: object) -> None:
+    tr = ventana.transistors  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(tr)  # type: ignore[attr-defined]
+    tr.library.select("INV")
+    tr.view.setFocus()
+    QTest.keyClick(tr.view, Qt.Key.Key_E, Qt.KeyboardModifier.AltModifier)
+    assert tr.mode.value() == "schematic"
+    QTest.keyClick(tr.view, Qt.Key.Key_C, Qt.KeyboardModifier.AltModifier)
+    assert tr.mode.value() == "gates"
+    # En la biblioteca el panel se ve; se puede ocultar con su botón.
+    assert tr.sources.isVisible()
+    tr.panel_button.click()
+    assert not tr.sources.isVisible()
+    QTest.keyClick(tr.view, Qt.Key.Key_F, Qt.KeyboardModifier.ControlModifier)
+    assert tr.sources.isVisible()
+
+
+def test_con_una_operacion_el_panel_se_oculta(ventana: object, qapp: object) -> None:
+    calcular(qapp, ventana)
+    tr = ventana.transistors  # type: ignore[attr-defined]
+    ventana.tabs.setCurrentWidget(tr)  # type: ignore[attr-defined]
+    tr.reveal("mant_addsub")
+    qapp.processEvents()  # type: ignore[attr-defined]
+    assert not tr.sources.isVisible()
+    tr.open_search()
+    assert tr.sources.isVisible()
+    assert tr.hierarchy.search.hasFocus() or not tr.isActiveWindow()
+
+
+def test_opciones_en_el_menu_ver(ventana: object) -> None:
+    tr = ventana.transistors  # type: ignore[attr-defined]
+    textos = [a.text() for a in tr.view_menu.actions() if a.text()]
+    assert textos[:4] == ["Camino activo", "Conmutaciones", "Mapa de actividad", "Color por valor"]
+    assert any(t.startswith("Exportar imagen") for t in textos)
+    assert not tr.paths.isChecked()  # sin recuadros verdes salvo que se pidan
