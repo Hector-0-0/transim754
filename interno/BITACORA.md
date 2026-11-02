@@ -4,6 +4,19 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-11-02 (exposición) · Tablas del motor cached seguras entre hilos
+
+**Hecho**
+- Una corrida de CI de #57 falló en `test_programa_paso_a_paso_y_hasta_halt`: la CPU
+  imprimió 0x40100000 (2.25) en vez de 0x40700000. Causa: `CellTable.step` usa un solo
+  `SwitchEngine` interno por tipo de celda y las tablas se comparten entre todos los
+  motores; con la pestaña Operación y la CPU calculando en hilos distintos, un hilo cargaba
+  su estado sobre el del otro y el resultado equivocado quedaba memoizado.
+- Candado por tabla en el fallo de memo y candado del registro `_TABLES`. Prueba nueva
+  que fuerza la intercalación (falla sin el candado, pasa con él).
+
+---
+
 ## 2026-11-02 (cierre) · Recorrido de la multiplicación y la división
 
 **Hecho**

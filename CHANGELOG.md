@@ -89,6 +89,11 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   para organizar el trabajo en equipo.
 
 ### Corregido
+- Las tablas del motor `cached` se comparten entre hilos y cada una resolvía sus fallos
+  de memo con un solo simulador interno sin candado: si la pestaña Operación y la CPU
+  calculaban a la vez, un hilo podía pisar el estado del otro y dejar en el memo un
+  resultado equivocado (la CPU llegó a devolver 2.25 en vez de 3.75). Ahora ese cálculo
+  y la creación de tablas van bajo candado; una prueba reproduce la carrera.
 - El motor `switch` lanzaba `OscillationError` en la división binary32 (por ejemplo,
   1 / 3) aunque el circuito se estabiliza: el límite de eventos de las unidades pasa de
   10 a 100 cambios por nodo.
