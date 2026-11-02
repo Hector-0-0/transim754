@@ -40,7 +40,7 @@ from PySide6.QtWidgets import (
 
 from transim.ui.gui import theme as th
 from transim.ui.gui import walkthrough as wt
-from transim.ui.gui.model import Calculation
+from transim.ui.gui.model import Calculation, unit_title
 from transim.ui.gui.widgets import card, hint, stage_color, thousands
 
 BOX_W = 236.0
@@ -80,7 +80,9 @@ class StepItem(QGraphicsItem):
         self.setData(0, index)
         self.setAcceptHoverEvents(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip(f"{step.title}\nClic: ir a este paso · Doble clic: ver sus transistores")
+        self.setToolTip(
+            f"{step.title}\nClic para ir a este paso; doble clic para ver sus transistores"
+        )
         self._hover = False
 
     def boundingRect(self) -> QRectF:  # noqa: N802 - API de Qt
@@ -174,16 +176,33 @@ class StepItem(QGraphicsItem):
 
 
 class PillItem(QGraphicsItem):
-    """Las entradas (al comienzo) o el resultado (al final)."""
+    """Las entradas (al comienzo) o el resultado (al final). Un clic en las entradas vuelve
+    al primer paso; en el resultado, muestra todos."""
 
     def __init__(self, title: str, lines: tuple[str, ...], lit: bool) -> None:
         super().__init__()
         self.title = title
         self.lines = lines
         self.lit = lit
+        self._hover = False
+        self.setAcceptHoverEvents(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip(
+            "Clic para volver al primer paso"
+            if title == "entradas"
+            else "Clic para ver todos los pasos"
+        )
 
     def boundingRect(self) -> QRectF:  # noqa: N802 - API de Qt
-        return QRectF(-2, -2, BOX_W + 4, BOX_H + 4)
+        return QRectF(-3, -3, BOX_W + 6, BOX_H + 6)
+
+    def hoverEnterEvent(self, event: object) -> None:  # noqa: N802 - API de Qt
+        self._hover = True
+        self.update()
+
+    def hoverLeaveEvent(self, event: object) -> None:  # noqa: N802 - API de Qt
+        self._hover = False
+        self.update()
 
     def paint(
         self,
@@ -195,16 +214,20 @@ class PillItem(QGraphicsItem):
         rect = QRectF(0, PILL_INSET, BOX_W, BOX_H - 2 * PILL_INSET)
         path = QPainterPath()
         path.addRoundedRect(rect, rect.height() / 2, rect.height() / 2)
+        # Fondo opaco y trazo sin relleno: el dibujo no depende del estado del pintor.
+        painter.fillPath(path, QColor(t.surface if self.lit else t.surface_alt))
         if self.lit:
             fill = QColor(t.accent)
             fill.setAlpha(34)
             painter.fillPath(path, fill)
-            painter.setPen(QPen(QColor(t.accent), 1.6))
+            pen = QPen(QColor(t.accent), 1.6)
         else:
-            painter.fillPath(path, QColor(t.surface_alt))
             pen = QPen(QColor(t.border), 1.1)
             pen.setStyle(Qt.PenStyle.DashLine)
-            painter.setPen(pen)
+        if self._hover:
+            pen = QPen(QColor(t.select), 2.0)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(pen)
         painter.drawPath(path)
         painter.setPen(QColor(t.muted))
         painter.setFont(_font(8.5, bold=True))
@@ -224,6 +247,8 @@ class StepDiagram(QGraphicsView):
 
     step_clicked = Signal(int)
     step_activated = Signal(int)
+    pill_clicked = Signal(str)
+    """Clic en las entradas (``"entradas"``) o en el resultado (``"resultado"``)."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -234,6 +259,8 @@ class StepDiagram(QGraphicsView):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFrameShape(QFrame.Shape.NoFrame)
+        # Pocas cajas: repintar toda la vista evita restos de repintados parciales.
+        self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
         self.setMinimumSize(420, 300)
         self.walk: wt.Walkthrough | None = None
         self.current = 0
@@ -350,17 +377,28 @@ class StepDiagram(QGraphicsView):
             else:
                 self._fit()
 
-    def _index_at(self, event: object) -> int | None:
+    def _item_at(self, event: object) -> StepItem | PillItem | None:
         item = self.itemAt(event.position().toPoint())  # type: ignore[attr-defined]
-        while item is not None and not isinstance(item, StepItem):
+        while item is not None and not isinstance(item, StepItem | PillItem):
             item = item.parentItem()
+        return item if isinstance(item, StepItem | PillItem) else None
+
+    def _index_at(self, event: object) -> int | None:
+        item = self._item_at(event)
         return item.index if isinstance(item, StepItem) else None
 
     def mousePressEvent(self, event: object) -> None:  # noqa: N802 - API de Qt
-        k = self._index_at(event)
-        if k is not None and event.button() == Qt.MouseButton.LeftButton:  # type: ignore[attr-defined]
-            self.step_clicked.emit(k)
+        item = self._item_at(event)
+        left = event.button() == Qt.MouseButton.LeftButton  # type: ignore[attr-defined]
+        # Primero termina el clic y después se redibuja: la escena se rehace entera y no
+        # debe borrar la caja mientras la vista todavía procesa el evento.
         super().mousePressEvent(event)  # type: ignore[arg-type]
+        if not left or item is None:
+            return
+        if isinstance(item, StepItem):
+            self.step_clicked.emit(item.index)
+        else:
+            self.pill_clicked.emit(item.title)
 
     def mouseDoubleClickEvent(self, event: object) -> None:  # noqa: N802 - API de Qt
         k = self._index_at(event)
@@ -419,21 +457,15 @@ class WalkthroughTab(QWidget):
         heading.setSpacing(2)
         heading.addWidget(self.expression)
         heading.addWidget(self.subtitle)
-        self.prev = self._tool("◀ Anterior", "Paso anterior (←)", lambda: self.step_move(-1))
+        self.prev = self._tool("◀ Anterior", "Paso anterior", lambda: self.step_move(-1))
         self.counter = QLabel()
         self.counter.setMinimumWidth(92)
         self.counter.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.next = self._tool("Siguiente ▶", "Paso siguiente (→)", lambda: self.step_move(1))
+        self.next = self._tool("Siguiente ▶", "Paso siguiente", lambda: self.step_move(1))
         self.next.setObjectName("primary")
-        self.play = self._tool(
-            "⏵ Reproducir", "Avanza solo, un paso cada vez (Espacio)", self.toggle_play
-        )
-        self.restart = self._tool(
-            "Desde el inicio", "Volver al paso 1 (Inicio)", lambda: self.go(0)
-        )
-        self.all = self._tool(
-            "Ver todo", "Mostrar todos los pasos con sus valores (Fin)", self.show_all
-        )
+        self.play = self._tool("⏵ Reproducir", "Avanza solo, un paso cada vez", self.toggle_play)
+        self.restart = self._tool("Desde el inicio", "Volver al paso 1", lambda: self.go(0))
+        self.all = self._tool("Ver todo", "Mostrar todos los pasos con sus valores", self.show_all)
         top = QHBoxLayout()
         top.addLayout(heading, 1)
         for w in (self.restart, self.prev, self.counter, self.next, self.play, self.all):
@@ -443,14 +475,15 @@ class WalkthroughTab(QWidget):
         self.diagram = StepDiagram()
         self.diagram.step_clicked.connect(self.go)
         self.diagram.step_activated.connect(self._activate)
+        self.diagram.pill_clicked.connect(self._pill)
         diagram_frame = QFrame()
         diagram_frame.setObjectName("card")
         dl = QVBoxLayout(diagram_frame)
         dl.setContentsMargins(1, 1, 1, 1)
         dl.addWidget(self.diagram)
 
-        # Panel «Qué está pasando».
-        panel, pl = card("Qué está pasando")
+        # Panel con la explicación del paso.
+        panel, pl = card()
         panel.setMinimumWidth(360)
         panel.setMaximumWidth(470)
         self.p_step = QLabel()
@@ -470,7 +503,7 @@ class WalkthroughTab(QWidget):
         self.p_detail.setMargin(10)
         self.p_links = hint("")
         self.p_open = QPushButton("Ver sus transistores ▸")
-        self.p_open.setToolTip("Abrir este bloque en la pestaña Transistores (Enter)")
+        self.p_open.setToolTip("Abrir este bloque en la pestaña Transistores")
         self.p_open.setCursor(Qt.CursorShape.PointingHandCursor)
         self.p_open.clicked.connect(lambda: self._activate(self.index))
         self.p_wave = QPushButton("Ver la propagación ▸")
@@ -492,8 +525,8 @@ class WalkthroughTab(QWidget):
         body.addWidget(diagram_frame, 1)
         body.addWidget(panel)
         self.keys = hint(
-            "← → cambian de paso · Espacio reproduce · Enter o doble clic en una caja abre "
-            "sus transistores · Los valores son los de la simulación; el orden es el del "
+            "Las flechas cambian de paso, Espacio reproduce y Enter o doble clic en una caja "
+            "abre sus transistores. Los valores son los de la simulación; el orden es el del "
             "flujo de datos (el simulador no mide tiempos)."
         )
 
@@ -526,6 +559,18 @@ class WalkthroughTab(QWidget):
             sc.activated.connect(fn)
         self.apply_theme()
 
+    def set_presentation(self, on: bool) -> None:
+        """Modo exposición (ADR-0019): sin la línea de teclas ni la de conexiones."""
+        self.keys.setVisible(not on)
+        self.p_links.setVisible(not on)
+
+    def _pill(self, which: str) -> None:
+        if which == "entradas":
+            self.stop()
+            self.go(0)
+        else:
+            self.show_all()
+
     def _tool(self, text: str, tip: str, fn: object) -> QPushButton:
         b = QPushButton(text)
         b.setObjectName("tool")
@@ -550,8 +595,7 @@ class WalkthroughTab(QWidget):
         self.stop()
         self.stack.setCurrentIndex(1)
         self.expression.setText(walk.expression)
-        kind = "explicado paso a paso" if walk.narrated else "bloques en orden de flujo"
-        self.subtitle.setText(f"{walk.unit} · {len(walk.steps)} pasos · {kind}")
+        self.subtitle.setText(f"{unit_title(walk.unit)}, en {len(walk.steps)} pasos")
         self.p_note.setText(
             ""
             if walk.narrated
@@ -636,11 +680,11 @@ class WalkthroughTab(QWidget):
         self.restart.setEnabled(self.index > 0)
         self.next.setEnabled(self.index < n - 1)
         self.all.setEnabled(self.index < n - 1)
-        self.p_step.setText(f"PASO {self.index + 1} DE {n}")
+        self.p_step.setText(f"Paso {self.index + 1} de {n}")
         color = stage_color(step.key).name()
         self.p_title.setText(f"<span style='color:{color}'>■</span>&nbsp;{step.title}")
-        blocks = ", ".join(step.paths)
-        self.p_meta.setText(f"{thousands(step.transistors)} transistores · bloque {blocks}")
+        self.p_meta.setText(f"{thousands(step.transistors)} transistores")
+        self.p_meta.setToolTip("Bloque: " + ", ".join(step.paths))
         self.p_text.setText(step.text)
         self.p_detail.setText(step.detail)
         self.p_wave.setText(

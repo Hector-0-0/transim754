@@ -72,7 +72,7 @@ from transim.ui.gui.canvas import (
 from transim.ui.gui.circuit import Binding, active_path, bind_cell, bind_instance
 from transim.ui.gui.cross_section import CrossSection, Device, explain
 from transim.ui.gui.floorplan import Tile
-from transim.ui.gui.model import Calculation, instance_toggles
+from transim.ui.gui.model import Calculation, instance_toggles, unit_title
 from transim.ui.gui.propagation import Replay, ReplayReader
 from transim.ui.gui.steps import Step, cell_steps, input_ids
 from transim.ui.gui.widgets import Segmented, card, hint, stage_color, thousands
@@ -122,6 +122,11 @@ def _v(value: Logic) -> str:
     return logic_text(value)
 
 
+def _capital(text: str) -> str:
+    """Primera letra en mayúscula: «sumar/restar mantisas» → «Sumar/restar mantisas»."""
+    return text[:1].upper() + text[1:]
+
+
 def _children(item: QTreeWidgetItem) -> list[QTreeWidgetItem]:
     """Hijos de un elemento del árbol."""
     return [c for k in range(item.childCount()) if (c := item.child(k)) is not None]
@@ -140,7 +145,7 @@ class LibraryPanel(QWidget):
         self.cells.setToolTip("Celdas de la biblioteca (capa L1)")
         for name, build in CELLS.items():
             n = len(build().transistors)
-            item = QListWidgetItem(f"{name}   ·   {n} T\n{DESCRIPTIONS.get(name, '')}")
+            item = QListWidgetItem(f"{name}  ({n} transistores)\n{DESCRIPTIONS.get(name, '')}")
             item.setData(Qt.ItemDataRole.UserRole, name)
             item.setToolTip((build.__doc__ or "").strip().split("\n")[0])
             self.cells.addItem(item)
@@ -167,7 +172,6 @@ class LibraryPanel(QWidget):
         box_layout.addLayout(self.inputs_box)
         box_layout.addWidget(self.step)
         box_layout.addWidget(self.outputs)
-        box_layout.addWidget(hint("También puede hacer clic en una entrada del dibujo."))
         layout.addWidget(box)
         tt, tt_layout = card("Tabla de verdad")
         tt_layout.addWidget(self.table, 1)
@@ -231,7 +235,7 @@ class LibraryPanel(QWidget):
             )
             return
         self.table.show()
-        self.table_note.setText("Calculada con los transistores de la celda.")
+        self.table_note.setText("")
         rows = truth_table(self.name)
         self.table.setColumnCount(len(ports_in) + len(ports_out))
         self.table.setHorizontalHeaderLabels(ports_in + ports_out)
@@ -331,7 +335,7 @@ class HierarchyPanel(QWidget):
         self.search.setPlaceholderText("Buscar instancia o celda (p. ej. mux12, FA, round)…")
         self.search.setClearButtonEnabled(True)
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["instancia", "T", "conm."])
+        self.tree.setHeaderLabels(["Parte", "Transistores", "Cambios"])
         self.tree.setUniformRowHeights(True)
         self.tree.setAlternatingRowColors(True)
         header = self.tree.header()
@@ -339,11 +343,10 @@ class HierarchyPanel(QWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for c in (1, 2):
             header.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
-        self.tree.headerItem().setToolTip(1, "Transistores")
-        self.tree.headerItem().setToolTip(2, "Conmutaciones en la última operación")
+        self.tree.headerItem().setToolTip(2, "Nodos que cambiaron en la última operación")
         self.tree.setToolTip(
             "La unidad muestra el chip completo; un bloque, sus celdas; una celda, sus "
-            "transistores. «conm.»: conmutaciones en la última operación."
+            "transistores."
         )
         empty = QWidget()
         empty_layout = QVBoxLayout(empty)
@@ -466,17 +469,17 @@ class TransistorTab(QWidget):
                 (
                     "gates",
                     "Compuertas",
-                    "Qué función lógica calcula cada etapa CMOS, con sus valores (Alt+C)",
+                    "Qué función lógica calcula cada etapa CMOS, con sus valores",
                 ),
                 (
                     "schematic",
                     "Transistores",
-                    "Esquema eléctrico CMOS: pull-up de pMOS y pull-down de nMOS (Alt+E)",
+                    "Esquema eléctrico CMOS: pull-up de pMOS y pull-down de nMOS",
                 ),
                 (
                     "silicon",
                     "Silicio",
-                    "Layout ilustrativo: difusión, polisilicio y metal, como en el chip (Alt+S)",
+                    "Cómo se vería en el chip: difusión, polisilicio y metal",
                 ),
             ]
         )
@@ -508,18 +511,14 @@ class TransistorTab(QWidget):
         self.zoom_label.setToolTip("Zoom (clic: tamaño real)")
         self.zoom_label.clicked.connect(self.view.actual_size)
         self.view.zoom_changed.connect(lambda z: self.zoom_label.setText(f"{z * 100:.0f} %"))
-        zoom_out = self._tool("−", "Alejar (Ctrl+−)", self.view.zoom_out)
-        zoom_in = self._tool("+", "Acercar (Ctrl++)", self.view.zoom_in)
-        fit = self._tool(
-            "Ajustar",
-            "Ver todo el dibujo (Ctrl+0 o doble clic en el fondo)",
-            lambda: self.view.fit(),
-        )
+        zoom_out = self._tool("−", "Alejar", self.view.zoom_out)
+        zoom_in = self._tool("+", "Acercar", self.view.zoom_in)
+        fit = self._tool("Ajustar", "Ver todo el dibujo", lambda: self.view.fit())
         self.view_menu = QMenu(self)
         for action in (self.paths, self.toggles, self.heat, self.by_value):
             self.view_menu.addAction(action)
         self.view_menu.addSeparator()
-        export_action = QAction("Exportar imagen… (Ctrl+E)", self)
+        export_action = QAction("Exportar imagen…", self)
         export_action.triggered.connect(self.export_dialog)
         self.view_menu.addAction(export_action)
         self.view_button = QToolButton()
@@ -531,9 +530,7 @@ class TransistorTab(QWidget):
         self.panel_button = QToolButton()
         self.panel_button.setText("☰")
         self.panel_button.setCheckable(True)
-        self.panel_button.setToolTip(
-            "Mostrar u ocultar la biblioteca y el árbol de la unidad (Ctrl+F para buscar)"
-        )
+        self.panel_button.setToolTip("Mostrar u ocultar la biblioteca y las partes de la unidad")
         self.panel_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.panel_button.clicked.connect(self._panel_clicked)
         self._panel_choice: bool | None = None
@@ -676,6 +673,8 @@ class TransistorTab(QWidget):
         self.view.double_clicked.connect(self._double_clicked)
         self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.view.customContextMenuRequested.connect(self._context_menu)
+        self.presentation = False
+        self.shortcuts: list[QShortcut] = []
         for keys, fn in (
             ("Escape", self._clear_selection),
             ("Backspace", self._go_up),
@@ -692,7 +691,19 @@ class TransistorTab(QWidget):
             sc = QShortcut(QKeySequence(keys), self)
             sc.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
             sc.activated.connect(fn)
+            if "+" in keys:  # atajos con Ctrl o Alt; Esc y Retroceso siempre sirven
+                self.shortcuts.append(sc)
         self.library.select("INV")
+
+    def set_presentation(self, on: bool) -> None:
+        """Modo exposición (ADR-0019): sin el panel de detalle, la línea de descripción ni
+        las casillas de capas, y sin atajos con Ctrl o Alt. Nada se elimina."""
+        self.presentation = on
+        self.inspector.setVisible(not on)
+        self.info.setVisible(not on)
+        for sc in self.shortcuts:
+            sc.setEnabled(not on)
+        self._update_controls()
 
     # ------------------------------------------------------------- controles
     def _toggle(self, text: str, checked: bool, tip: str) -> QAction:
@@ -781,7 +792,7 @@ class TransistorTab(QWidget):
         self.heat.setEnabled(op)
         cell_silicon = self.silicon and not self.scene.blocks
         self.by_value.setEnabled(cell_silicon)
-        self.layer_row.setVisible(cell_silicon)
+        self.layer_row.setVisible(cell_silicon and not self.presentation)
 
     def _steps_refresh(self) -> None:
         """Prepara los pasos de la celda dibujada (solo si es un esquema de una celda)."""
@@ -803,10 +814,7 @@ class TransistorTab(QWidget):
         cell = self.scene.cells[0]
         if self.step_pos < 0:
             self.scene.step_filter = None
-            self.step_text.setText(
-                f"{n} etapas en orden de dependencia. Siguiente las muestra de una en una, "
-                "con su cuenta."
-            )
+            self.step_text.setText(f"{n} etapas")
         else:
             done = self.steps[: self.step_pos + 1]
             transistors = frozenset().union(*(st.transistors for st in done))
@@ -827,10 +835,7 @@ class TransistorTab(QWidget):
                 said = gl.explain(gate, cell.binding.netlist, cell.value_fn())
             else:
                 said = f"{step.label} = {logic_text(cell.value_fn()(step.outputs[0]))}"
-            self.step_text.setText(
-                f"<b>Etapa {self.step_pos + 1} de {n}</b>: {said}. Valores de la simulación; "
-                "el orden sigue la dependencia entre etapas."
-            )
+            self.step_text.setText(f"<b>Etapa {self.step_pos + 1} de {n}</b>: {said}")
         self.step_back.setEnabled(self.step_pos >= 0)
         self.step_next.setEnabled(self.step_pos < n - 1)
         self.step_all.setEnabled(self.step_pos >= 0)
@@ -893,8 +898,11 @@ class TransistorTab(QWidget):
         worst = self._worst
         moving = len(self.scene.flash_cells & paths)
         self.time_text.setText(
-            f"<b>t = {t}</b> de {r.length} retardos · cambian {moving} celdas · el bloque "
-            f"termina en t = {last} · peor caso de la unidad: {worst}"
+            f"<b>Retardo {t} de {r.length}</b>. Este bloque termina en el retardo {last}."
+        )
+        self.time_text.setToolTip(
+            f"En este instante cambian {moving} celdas. El peor caso de la unidad es de "
+            f"{worst} retardos (su camino crítico)."
         )
         self.time_back.setEnabled(t > 0)
         self.time_next.setEnabled(t < r.length)
@@ -989,13 +997,10 @@ class TransistorTab(QWidget):
                 title = f"{STAGE_NAMES[name][:1].upper()}{STAGE_NAMES[name][1:]}"
                 color = stage_color(name).name()
             else:
-                title = f"{name} · {inst.definition.name}"
+                title = f"{name} ({inst.definition.name})"
                 color = stage_color(inst.definition.name).name()
             tiles.append(Tile(inst.path, title, len(inst.transistors), color))
-            subs.append(
-                f"{thousands(len(inst.transistors))} transistores · "
-                f"{thousands(self._tile_toggles(inst.path))} conm."
-            )
+            subs.append(f"{thousands(len(inst.transistors))} transistores")
         if group:
             kinds: dict[str, list[Instance]] = {}
             for c in leaves:
@@ -1005,57 +1010,41 @@ class TransistorTab(QWidget):
                 self._tile_members[key] = cells
                 n = sum(len(c.transistors) for c in cells)
                 tiles.append(Tile(key, f"{kind} × {len(cells)}", n, stage_color(kind).name()))
-                subs.append(
-                    f"{thousands(n)} transistores · {thousands(self._tile_toggles(key))} conm."
-                )
+                subs.append(f"{thousands(n)} transistores")
         return tiles, subs
 
     def _legend(self) -> None:
+        """Leyenda corta: solo los colores, sin explicaciones largas."""
         t = th.current()
+        gap = "&nbsp;" * 5
+
+        def swatch(color: str, text: str, mark: str = "■") -> str:
+            return f"<span style='color:{color}; font-size:14px'>{mark}</span>&nbsp;{text}"
+
+        values = [
+            swatch(t.one, "1", "━"),
+            swatch(t.zero, "0", "─"),
+            swatch(t.unknown, "X", "┄"),
+        ]
         if self.silicon and self.scene.blocks:
-            self.legend.setText(
-                "Plano ilustrativo: el área de cada bloque es proporcional a sus transistores y "
-                "su color es el de su etapa (el mismo de Ciclos de reloj y Recorrido). Doble "
-                "clic en un bloque para entrar; en una celda se ven su esquema y su silicio."
-            )
-            return
-        if self.silicon:
+            parts = ["El área de cada bloque es proporcional a sus transistores"]
+        elif self.silicon:
             parts = [
-                f"<span style='color:{LAYER_COLOR[k]}; font-size:14px'>■</span> {LAYER_NAMES[k]}"
+                swatch(LAYER_COLOR[k], LAYER_NAMES[k])
                 for k in ("pdiff", "ndiff", "poly", "metal1", "metal2")
             ]
-            parts.append(
-                f"<span style='color:{LAYER_COLOR['nwell']}; font-size:14px'>▭</span> pozo n"
-            )
-            parts.append(f"<span style='color:{t.on}; font-size:14px'>■</span> canal que conduce")
-            text = " · ".join(parts) + ". Layout ilustrativo generado del netlist, no a escala."
+            parts.append(swatch(t.on, "canal que conduce"))
         elif self._grid_shown():
-            text = (
-                "Rejilla de bits: cada recuadro es una celda (columna = bit, fila = nivel "
-                f"lógico) pintada con su salida: <span style='color:{t.one}'>■</span> 1 · "
-                f"<span style='color:{t.zero}'>■</span> 0; la marca de la derecha es su segunda "
-                "salida (el acarreo en un FA). Borde amarillo: cambió en ese instante. "
-                "Propagación con retardo unitario por celda (ADR-0018): puede mostrar valores "
-                "pasajeros que el motor no calcula."
-            )
+            parts = [
+                swatch(t.one, "salida en 1"),
+                swatch(t.zero, "salida en 0"),
+                swatch(t.halo, "cambia en este instante", "□"),
+            ]
         elif self.gates:
-            text = (
-                f"<span style='color:{t.one}; font-size:14px'>━</span> 1 (cable grueso) · "
-                f"<span style='color:{t.zero}; font-size:14px'>─</span> 0 · "
-                f"<span style='color:{t.unknown}; font-size:14px'>┄</span> X · "
-                "Cada compuerta es una etapa CMOS de la celda; ¬ es la negación, · el AND y + "
-                "el OR. Doble clic en una compuerta para ver sus transistores."
-            )
+            parts = values
         else:
-            text = (
-                f"<span style='color:{t.one}; font-size:14px'>━</span> 1 · "
-                f"<span style='color:{t.zero}; font-size:14px'>─</span> 0 · "
-                f"<span style='color:{t.unknown}; font-size:14px'>┄</span> X · "
-                "fondo rojizo: red pull-up (pMOS, lleva la salida a 1) · fondo azulado: red "
-                "pull-down (nMOS, la lleva a 0) · canal continuo: conduce; cortado: no conduce. "
-                "Pase el ratón por un transistor para ver su nombre y su corte."
-            )
-        self.legend.setText(text)
+            parts = [*values, swatch(t.on, "canal que conduce")]
+        self.legend.setText(gap.join(parts))
 
     # --------------------------------------------------------------- dibujo
     def redraw(self) -> None:
@@ -1141,9 +1130,9 @@ class TransistorTab(QWidget):
         cell = self.library.cell
         n = len(cell.transistors)
         if not cell.instances:
-            return [(bind_cell(cell), f"{cell.name} · {n} transistores")]
+            return [(bind_cell(cell), f"{cell.name}, {n} transistores")]
         return [
-            (bind_instance(i), f"{i.path} · {i.definition.name}") for i in cell.leaf_instances()
+            (bind_instance(i), f"{i.path} ({i.definition.name})") for i in cell.leaf_instances()
         ]
 
     def _draw_library(self, fit: bool) -> None:
@@ -1209,17 +1198,17 @@ class TransistorTab(QWidget):
             self._children.setdefault(inst.parent, []).append(inst)
         flags = str(calc.result.flags)
         self.hierarchy.header.setText(
-            f"<b>{netlist.name}</b><br>{calc.expression}"
-            f"{'' if flags == '—' else '  ·  ' + flags}<br>"
+            f"<b>{unit_title(netlist.name)}</b><br>{calc.expression}"
+            f"{'' if flags == '—' else ', ' + flags}<br>"
             f"<span style='color:{th.current().muted}'>{thousands(len(netlist.transistors))} "
-            f"transistores · {thousands(calc.toggles)} conmutaciones</span>"
+            f"transistores</span>"
         )
         self.hierarchy.stack.setCurrentIndex(1)
         previous = self._target if same_unit and self._target[0] != "library" else None
         self.tree.blockSignals(True)
         self.tree.clear()
         root = QTreeWidgetItem(
-            [netlist.name, thousands(len(netlist.transistors)), thousands(calc.toggles)]
+            [unit_title(netlist.name), thousands(len(netlist.transistors)), thousands(calc.toggles)]
         )
         root.setData(0, Qt.ItemDataRole.UserRole, "unit")
         root.setToolTip(0, "El chip completo (vista de silicio)")
@@ -1267,9 +1256,9 @@ class TransistorTab(QWidget):
         assert self.unit is not None
         name = inst.path.rsplit(".", 1)[-1]
         if inst.parent is None and name in STAGE_NAMES:
-            name = f"{name} · {STAGE_NAMES[name]}"
+            name = _capital(STAGE_NAMES[name])
         elif inst.is_leaf:
-            name = f"{name} · {inst.definition.name}"
+            name = f"{name} ({inst.definition.name})"
         child = QTreeWidgetItem(
             [
                 name,
@@ -1409,18 +1398,19 @@ class TransistorTab(QWidget):
                 self._tile_members["glue"] = glue
                 n_glue = sum(len(c.transistors) for c in glue)
                 tiles.append(Tile("glue", "Selección y enlace", n_glue, stage_color(GLUE).name()))
-                subs.append(
-                    f"{len(glue)} celdas · {thousands(n_glue)} transistores · "
-                    f"{thousands(self._tile_toggles('glue'))} conm."
-                )
+                subs.append(f"{len(glue)} celdas, {thousands(n_glue)} transistores")
             self._draw(
                 [],
                 engine,
                 set(),
                 fit,
-                floor=(tiles, subs, (netlist.name, f"{thousands(n_total)} transistores")),
+                floor=(
+                    tiles,
+                    subs,
+                    (unit_title(netlist.name), f"{thousands(n_total)} transistores"),
+                ),
             )
-            self.breadcrumb.setText(f"<b>{netlist.name}</b> — el chip completo")
+            self.breadcrumb.setText(f"<b>{unit_title(netlist.name)}</b>, el chip completo")
             self.info.setText(
                 f"{netlist.name}: {thousands(n_total)} transistores en {len(tiles)} regiones. "
                 "Cada bloque ocupa un área proporcional a sus transistores; doble clic en uno "
@@ -1479,7 +1469,7 @@ class TransistorTab(QWidget):
         assert self.unit is not None
         t = th.current()
         link = f"color:{t.accent}; text-decoration:none"
-        parts = [f"<a style='{link}' href='unit'>{self.unit.netlist.name}</a>"]
+        parts = [f"<a style='{link}' href='unit'>{unit_title(self.unit.netlist.name)}</a>"]
         if kind == "glue":
             parts.append(f"<b>{STAGE_NAMES[GLUE]}</b>")
         elif kind == "instance":
@@ -1493,7 +1483,7 @@ class TransistorTab(QWidget):
                 parts.append(f"<a style='{link}' href='glue'>{STAGE_NAMES[GLUE]}</a>")
             for k, step in enumerate(chain):
                 name = step.rsplit(".", 1)[-1]
-                label = f"{name} · {STAGE_NAMES[name]}" if k == 0 and name in STAGE_NAMES else name
+                label = _capital(STAGE_NAMES[name]) if k == 0 and name in STAGE_NAMES else name
                 if k == len(chain) - 1:
                     parts.append(f"<b>{label}</b> ({self._instances[step].definition.name})")
                 else:
@@ -1742,7 +1732,7 @@ class TransistorTab(QWidget):
         share = 100 * tile.weight / total if total else 0.0
         ins.title.setText(f"<b>{tile.title}</b>")
         ins.body.setText(
-            f"{what}<br>{thousands(tile.weight)} transistores ({share:.1f} % de la unidad) · "
+            f"{what}<br>{thousands(tile.weight)} transistores ({share:.1f} % de la unidad), "
             f"{thousands(self._tile_toggles(tile.key))} conmutaciones en la última operación."
         )
         ins.explain.setText("Doble clic para entrar.")
@@ -1808,8 +1798,8 @@ class TransistorTab(QWidget):
                 return f"{name} <b style='color:{color}'>{label} = {_v(value)}</b>"
 
             ins.body.setText(
-                f"{place} · {state}<br>"
-                + " · ".join(
+                f"{place}, {state}<br>"
+                + ", ".join(
                     (
                         term("compuerta", dev.gate, dev.gate_value),
                         term("fuente", dev.source, dev.source_value),
@@ -1871,11 +1861,11 @@ class TransistorTab(QWidget):
         if self.unit is not None and self._target[0] != "library":
             inst = self._instances.get(b.path)
             if inst is not None:
-                toggles = f" · {instance_toggles(self.unit.engine, inst)} conmutaciones"
+                toggles = f", {instance_toggles(self.unit.engine, inst)} conmutaciones"
         ins.title.setText(f"<b>Celda {where}</b> ({c.name})")
         n = len(b.transistors)
         ins.body.setText(
-            f"{DESCRIPTIONS.get(c.name, '')}<br>{n} transistores · {on} conducen{toggles}"
+            f"{DESCRIPTIONS.get(c.name, '')}<br>{n} transistores, {on} conducen{toggles}"
         )
         ins.explain.setText(
             "Doble clic para abrirla."

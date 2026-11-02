@@ -4,6 +4,27 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-11-02 (exposición, 2) · Modo exposición de la interfaz
+
+**Hecho**
+- PR #57 (diapositivas y guion) y #58 (carrera entre hilos) integrados.
+- Revisión de la interfaz clic por clic. Modo exposición (ADR-0019) por defecto en
+  `transim gui`: oscuro, sin menús, atajos, Programa, historial ni panel de detalle;
+  `--completo` lo muestra todo. Cada pestaña oculta lo suyo en `set_presentation`.
+- Texto natural: sin « · » en ningún texto visible (prueba nueva), nombres de unidad
+  como operación, leyendas de solo colores, sin líneas de ayuda largas.
+- Recorrido: las cajas de entradas y resultado ahora responden al clic (primer paso,
+  ver todo), la vista se repinta entera y la escena se rehace después del clic. No se
+  pudo reproducir la caja que «desaparecía» al hacer clic (ni sin pantalla ni en
+  Wayland): queda pendiente confirmarlo en la computadora del equipo.
+- Capturas de las diapositivas en oscuro y guion con pasos en vivo solo con el ratón.
+
+**Pendientes**
+- Confirmar en la computadora del aula que el diagrama de Recorrido se ve bien al hacer
+  clic en las entradas y el resultado.
+
+---
+
 ## 2026-11-02 (exposición) · Tablas del motor cached seguras entre hilos
 
 **Hecho**

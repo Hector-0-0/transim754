@@ -283,7 +283,7 @@ class _Story:
             exps.append(power)
             lines.append(f"{name} = {field}")
             note = " (cero o subnormal: exponente mínimo)" if ef == 0 else ""
-            lines.append(f"    signo {s} · exponente {e} → {power}{note}")
+            lines.append(f"    signo {s}, exponente {e} → {power}{note}")
             lines.append(f"    mantisa {mant}")
         text = (
             "Separa el signo, el exponente y la fracción de cada operando, y agrega el 1 "
@@ -409,9 +409,9 @@ class _Story:
             "exponente = eX + 1 − lz",
             f"          = {ex} + 1 − {lz} = {e}",
             f"mantisa   = {mant}",
-            f"G = {g} · R = {r} · S = {s}",
+            f"G = {g}, R = {r}, S = {s}",
         ]
-        return f"<< {lz} · e = {e}", self.normalize_text(), "\n".join(lines)
+        return f"<< {lz}, e = {e}", self.normalize_text(), "\n".join(lines)
 
     @staticmethod
     def normalize_text() -> str:
@@ -440,7 +440,7 @@ class _Story:
             why = "empate exacto con el último bit en 0 → queda par, se trunca"
         sf, ef, ff = f.fields(y)
         lines = [
-            f"G R S = {g} {r} {s} · último bit = {lsb}",
+            f"G R S = {g} {r} {s}, último bit = {lsb}",
             why,
             "empaquetado:",
             f"  {sf} {format(ef, f'0{f.exp_bits}b')} {format(ff, f'0{f.frac_bits}b')}",
@@ -478,7 +478,7 @@ class _Story:
         res = self.calc.result
         fl = res.flags
         raised = any((fl.invalid, fl.div_by_zero, fl.overflow, fl.underflow, fl.inexact))
-        lines = [f"a: {classes[0]} · b: {classes[1]}"]
+        lines = [f"a: {classes[0]}, b: {classes[1]}"]
         cases = "NaN o ∞" if self.calc.op in ("add", "sub") else "NaN, ∞ o 0"
         if special:
             lines.append(f"caso especial ({cases}): manda la tabla")
@@ -557,7 +557,7 @@ class _Story:
             "exponente = ea + eb − sesgo + 1 − lz",
             f"          = {ea} + {eb} − {f.bias} + 1 − {lz} = {e}",
             f"mantisa   = {mant}",
-            f"G = {g} · R = {r} · S = {s_}",
+            f"G = {g}, R = {r}, S = {s_}",
         ]
         text = (
             "Un desplazador de barril deja el primer 1 adelante (forma 1.xxx). El exponente "
@@ -565,7 +565,7 @@ class _Story:
             "sesgo, porque cada uno ya lo traía; el 1 − lz ajusta la posición de la coma. "
             "Los bits que sobran dan G, R y S para redondear."
         )
-        return f"<< {lz} · e = {e}", text, "\n".join(lines)
+        return f"<< {lz}, e = {e}", text, "\n".join(lines)
 
     # ----------------------------------------------------------------- división
     def div_normalize(self) -> tuple[str, str, str]:

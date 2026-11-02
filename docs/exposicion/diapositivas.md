@@ -30,12 +30,13 @@ lang: es
 
 | Pestaña | Para qué |
 |---|---|
-| **Operación** (Ctrl+1) | Escribir a y b, elegir + − × ÷ y el formato, **Calcular en transistores**. Resultado, bits y flags; un clic en un bit lo invierte. |
-| **Recorrido** (Ctrl+2) | La misma operación en las etapas del hardware; **Siguiente** (→) avanza y el panel explica cada cuenta. |
-| **Transistores** (Ctrl+3) | Del plano del chip a cada transistor: rejilla de bits, compuertas, esquema CMOS y silicio. |
-| **Programa** (Ctrl+4) | Programas `.t754` en la CPU T754: ensamblar, F10 paso a paso, F8 hasta HALT. |
+| **Operación** | Escribir a y b, elegir + − × ÷ y el formato, **Calcular en transistores**. Resultado, bits y flags; un clic en un bit lo invierte. |
+| **Recorrido** | La misma operación en las etapas del hardware; **Siguiente** avanza y el panel explica cada cuenta. |
+| **Transistores** | Del plano del chip a cada transistor: rejilla de bits, compuertas, esquema CMOS y silicio. |
 
-Se abre con `transim gui`; F1 muestra la guía rápida.
+Se abre con `transim gui`, en modo exposición: oscuro, sin menús ni atajos de teclado.
+`transim gui --completo` muestra además los menús, la pestaña Programa (la CPU T754) y
+el historial (ADR-0019).
 
 ## Del transistor a la celda
 
@@ -85,7 +86,7 @@ $ transim calc 1.5 + 2.25 --trace
 ```
 
 - `transim calc 1 / 3` → `0x3EAAAAAB`, inexacto.
-- `transim run` y `transim gui`: programas en la máquina T754.
+- `transim run`: programas en la máquina T754; `transim gui`: la interfaz gráfica.
 
 ## Del chip al transistor
 
@@ -133,13 +134,6 @@ $ transim calc 1.5 + 2.25 --trace
   abiertos (ADR-0015). Al pasar el ratón por un transistor se resalta en los dos
   dibujos.
 
-## El transistor por dentro
-
-![nMOS que conduce: la compuerta en 1 forma un canal de electrones entre fuente y drenador.](img/corte_nmos.png)
-
-- En reposo, un canal que conduce une nodos con el mismo valor: no circula corriente.
-  La corriente solo fluye mientras una salida se carga o se descarga.
-
 ## Ciclos de reloj estimados
 
 - El simulador es de retardo cero; los ciclos se **derivan del camino crítico**
@@ -155,7 +149,7 @@ $ transim calc 1.5 + 2.25 --trace
 - Cada bloque se compara con un **modelo de referencia**, y este con NumPy.
 - Cuatro operaciones × dos formatos: todos los pares borde y 10 000 aleatorios.
 - **0 discrepancias** bit a bit, incluidos los cinco flags.
-- 613 pruebas automáticas; las 596 rápidas corren en cada cambio.
+- 623 pruebas automáticas; las 606 rápidas corren en cada cambio.
 
 ## Transistores por unidad
 

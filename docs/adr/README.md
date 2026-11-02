@@ -25,6 +25,7 @@ anterior se conserva y se marca como "Reemplazada por ADR-XXXX".
 | [0016](0016-vista-de-compuertas.md) | Vista de compuertas deducida de las etapas CMOS | Aceptada |
 | [0017](0017-plano-del-chip.md) | Plano del chip proporcional y celda junto a su silicio | Aceptada |
 | [0018](0018-rejilla-de-bits-y-propagacion.md) | Rejilla de bits y propagación con retardo unitario por celda | Aceptada |
+| [0019](0019-modo-exposicion.md) | Modo exposición de la interfaz gráfica | Aceptada |
 
 ## Referencia
 

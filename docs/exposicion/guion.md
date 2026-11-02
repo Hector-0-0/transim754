@@ -1,7 +1,8 @@
 # Guion de la exposición
 
 Unos 10 minutos, seis bloques; cada expositor habla una sola vez. Las diapositivas
-son apoyo: en cada bloque, quien expone muestra en vivo cómo se usa el programa.
+son apoyo: en cada bloque, quien expone muestra en vivo cómo se usa el programa,
+abierto en modo exposición (`transim gui`, ADR-0019).
 
 ## Orden
 
@@ -20,12 +21,12 @@ preguntas.
 
 ## Antes de exponer (5 minutos antes, en la computadora del aula)
 
-1. Abrir el programa: `uv run transim gui` (F11 lo pone en pantalla completa).
+1. Abrir el programa con `uv run transim gui` y maximizar la ventana.
 2. En Operación, calcular 1 ÷ 3 (prepara la unidad de división, que es la más grande).
 3. Luego calcular 1 + 1. NO calcular 1.5 + 2.25 antes: si se repite la misma suma, el
    acarreo no tiene nada que mostrar porque nada cambia.
-4. Abrir una vez Transistores (Ctrl+3) › panel ☰ › Biblioteca › XOR2, y volver a
-   Operación (Ctrl+1).
+4. Abrir una vez la pestaña Transistores, botón ☰, Biblioteca, XOR2; y volver a la
+   pestaña Operación.
 5. Abrir las diapositivas en otra ventana; se pasa de una a otra con Alt+Tab.
 
 Si algo del programa falla en vivo: no se improvisa, se sigue con la diapositiva, que
@@ -49,17 +50,16 @@ completa, unos 100 600. Hacemos las cuatro operaciones en 32 y en 16 bits.
 
 ### Diapositiva 3 · Cómo se usa · *en vivo*
 
-El programa tiene cuatro pestañas, y cada una es una forma de mirar la misma FPU.
+El programa tiene tres pestañas, y cada una es una forma de mirar la misma FPU.
 
-> **En vivo:** Pasar por las pestañas con Ctrl+1, Ctrl+2, Ctrl+3 y Ctrl+4 mientras se dice:
+> **En vivo:** Hacer clic en cada pestaña mientras se dice:
 
 Operación es la FPU vista desde afuera: se escriben dos números y se calcula.
 Recorrido muestra esa misma operación paso a paso, en las etapas del hardware.
 Transistores la abre por dentro, desde el plano del chip hasta cada transistor.
-Y Programa la pone dentro de una CPU pequeña que ejecuta instrucciones.
-F1 abre una guía rápida con todos los controles.
+Todo se maneja con el ratón: clic para elegir y doble clic para entrar.
 
-> **En vivo:** Volver a Operación con Ctrl+1.
+> **En vivo:** Volver a la pestaña Operación.
 
 ### Diapositiva 4 · Arquitectura por capas
 
@@ -128,7 +128,7 @@ en paralelo hacia VDD y dos nMOS en serie hacia tierra. La XOR usa 12, el flip-f
 
 ### Diapositiva 11 · De transistores a compuertas · *en vivo · Transistores › Biblioteca*
 
-> **En vivo:** Ctrl+3, panel ☰, pestaña Biblioteca, elegir XOR2.
+> **En vivo:** Pestaña Transistores, botón ☰, Biblioteca, elegir XOR2.
 
 En el programa, cada celda se ve primero como compuertas. El programa las deduce de los
 transistores: nMOS en serie es un AND, en paralelo es un OR, y la salida sale negada.
@@ -141,12 +141,12 @@ Si cambio una entrada, todo se recalcula y la salida cambia.
 
 ### Diapositiva 12 · Esquema y silicio · *en vivo*
 
-> **En vivo:** Alt+E (vista Transistores).
+> **En vivo:** Botón «Transistores» de la barra de arriba (el esquema).
 
 Esta es la misma celda en transistores: arriba la red de pMOS, abajo la de nMOS. El
 canal en verde es el que conduce.
 
-> **En vivo:** Alt+S (vista Silicio) y pasar el ratón por un transistor.
+> **En vivo:** Botón «Silicio» y pasar el ratón por un transistor.
 
 Y así se fabricaría: difusión p en ocre, difusión n en verde y polisilicio en violeta
 cruzando las dos. Al pasar el ratón por un transistor se resalta en los dos dibujos. Es
@@ -180,17 +180,17 @@ arreglo de AND y sumadores: 29 966 transistores. La división es no restauradora
 fila de suma o resta por cada bit del cociente: 40 048 transistores, casi el triple que
 la suma.
 
-### Diapositiva 17 · El plano del chip · *en vivo · Transistores › Última operación*
+### Diapositiva 17 · El plano del chip · *en vivo · Transistores › Silicio*
 
-> **En vivo:** Ctrl+3, panel ☰, pestaña Última operación (la suma de Daniel), Alt+S.
+> **En vivo:** En el panel ☰, pestaña «Última operación» (la suma de Daniel): aparece el plano.
 
 Así se ve la unidad de suma completa. Cada rectángulo es un bloque y su área es
 proporcional a sus transistores: el más grande es el redondeo.
 
-> **En vivo:** Hacer clic en «Redondear y empaquetar»; luego doble clic para entrar y Retroceso para salir.
+> **En vivo:** Doble clic en «Redondear y empaquetar» para entrar; para volver, clic en «Suma y resta en binary32» en la ruta de arriba.
 
-Con un clic veo sus datos y con doble clic entro a sus celdas, hasta llegar al
-transistor. Yenny presenta las métricas.
+Con doble clic entro a sus celdas, hasta llegar al transistor, y con la ruta de arriba
+vuelvo. Yenny presenta las métricas.
 
 ## Bloque 5 · Yenny Chávez · Métricas y prueba integral · 1 min 35 s
 
@@ -201,11 +201,11 @@ no tiene tiempo físico, así que los ciclos se derivan del camino crítico, y u
 reloj 39 celdas, el camino crítico de la ALU entera. La suma recorre 176 celdas: 5
 ciclos; la multiplicación, 157: también 5; y la división, 852: 22 ciclos.
 
-> **En vivo:** Ctrl+1 y mostrar abajo «Ciclos de reloj»: la barra de los 5 ciclos.
+> **En vivo:** Pestaña Operación, abajo «Ciclos de reloj»: la barra de los 5 ciclos.
 
 ### Diapositiva 19 · Prueba integral · *en vivo · Recorrido*
 
-> **En vivo:** Ctrl+2. Pulsar «Siguiente» (o →) paso por paso hasta el 5.
+> **En vivo:** Pestaña Recorrido. Pulsar «Siguiente» paso por paso hasta el 5.
 
 Para la prueba integral, Recorrido muestra la suma de Daniel dentro del circuito. Cada
 caja es una etapa del hardware y el panel de la derecha explica la cuenta con los bits
@@ -215,7 +215,7 @@ igual que el modelo de referencia.
 
 ### Diapositiva 20 · El acarreo, retardo a retardo · *en vivo*
 
-> **En vivo:** En el paso 5, pulsar «Ver el acarreo ▸» y luego ⏵.
+> **En vivo:** En el paso 5, pulsar «Ver el acarreo ▸»: la animación empieza sola («Reproducir» la repite).
 
 Aquí está el sumador de mantisas por dentro: cada columna es un bit y cada fila un
 nivel lógico, así que la cadena de acarreo se ve como una escalera. Al reproducir,
@@ -226,23 +226,24 @@ peor caso, la suma completa tarda 176 retardos. Ronald cierra con los casos espe
 
 ### Diapositiva 21 · Casos especiales · *en vivo · Operación › Ejemplos ▾*
 
-> **En vivo:** Ctrl+1, «Ejemplos ▾» y elegir «1 ÷ 3»; después «1 ÷ 0» y «0 ÷ 0».
+> **En vivo:** Pestaña Operación, «Ejemplos ▾» y elegir «1 ÷ 3»; después «1 ÷ 0» y «0 ÷ 0».
 
 El estándar también define los casos difíciles, y el circuito los resuelve igual que el
 estándar. 1 entre 3 no tiene representación exacta: da 0.33333334 y se enciende el flag
 de inexacto. 1 entre 0 da más infinito, con el flag de división por cero. Y 0 entre 0
 da NaN, con el flag de operación inválida.
 
-> **En vivo:** Ctrl+4, «Ensamblar y reiniciar» y «Ejecutar hasta HALT» (F8).
+> **En vivo:** Volver a «1 ÷ 3» y señalar los bits del resultado.
 
-Y la misma suma corre dentro de una CPU: este programa carga 1.5 y 2.25, ejecuta FADD
-y su salida es otra vez 0x40700000.
+En los bits se ve el redondeo de Daniel: 1 entre 3 en binario es 0.0101 repetido, y
+la fracción termina en 1011 porque lo que se descartaba pasaba de medio ulp y el
+último bit subió.
 
 ### Diapositiva 22 · Verificación y conclusiones
 
 Para saber que todo es correcto, comparamos cada resultado con un modelo de referencia
 y con NumPy, en los casos borde y en 10 000 pares al azar por operación. No hubo
-ninguna diferencia, ni en los bits ni en los flags. El proyecto tiene 613 pruebas
+ninguna diferencia, ni en los bits ni en los flags. El proyecto tiene 623 pruebas
 automáticas que se corren cada vez que cambiamos algo.
 En conclusión: partimos de un transistor que solo es un interruptor y llegamos a una
 máquina de unos 100 600 transistores que suma, resta, multiplica y divide según IEEE
@@ -264,7 +265,7 @@ es de uso, se responde mostrándolo en el programa.
 - ¿Se puede en 16 bits? Sí: Formato › binary16 y Calcular. (Daniel)
 - ¿Cómo veo los transistores de una etapa? En Recorrido, doble clic en la caja; o en Transistores, doble clic en el plano hasta llegar a la celda. (Jairo o Fabrizzio)
 - ¿Cómo veo qué cambió? En Transistores, Ver ▾ › mapa de actividad. (Fabrizzio)
-- ¿Cómo corro un programa propio? En Programa, se escribe o se abre un .t754, F5 ensambla, F10 avanza una instrucción y F8 corre hasta HALT. (Ronald o Yenny)
+- ¿Y la CPU del proyecto? Existe: `transim gui --completo` muestra la pestaña Programa, que corre programas .t754 en la máquina T754 con la misma FPU. La ocultamos en la exposición porque no es parte de lo pedido. (Ronald o Yenny)
 
 ### Contenido
 

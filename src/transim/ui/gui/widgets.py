@@ -416,8 +416,8 @@ class BitField(QWidget):
         p.setFont(_font(8.0, True))
         heads = [
             ("sign", f.width - 1, f.width - 1, "s"),
-            ("exponent", f.width - 2, f.frac_bits, f"exponente · {f.exp_bits} bits"),
-            ("fraction", f.frac_bits - 1, 0, f"fracción · {f.frac_bits} bits"),
+            ("exponent", f.width - 2, f.frac_bits, f"exponente ({f.exp_bits} bits)"),
+            ("fraction", f.frac_bits - 1, 0, f"fracción ({f.frac_bits} bits)"),
         ]
         for field, hi, lo, name in heads:
             x0, x1 = self._x(hi), self._x(lo) + cell
@@ -506,7 +506,7 @@ class BitField(QWidget):
             "fraction": f"vale 2^−{self.fmt.frac_bits - k} en el significando",
         }[field]
         value = "—" if row.bits is None else str(row.bits >> bit & 1)
-        tip = f"<b>{row.name} · bit {bit}</b> = {value}<br>{names[field]}: {weight}"
+        tip = f"<b>{row.name}, bit {bit}</b> = {value}<br>{names[field]}: {weight}"
         if row.clickable:
             tip += "<br><i>clic para invertirlo y recalcular</i>"
         QToolTip.showText(event.globalPosition().toPoint(), tip, self)
@@ -628,7 +628,7 @@ class CycleStrip(QWidget):
         p.drawText(
             QRectF(0, bar.bottom() + 20, self.width(), 14),
             Qt.AlignmentFlag.AlignCenter,
-            "celdas del camino crítico (una unidad de retardo cada una)",
+            "celdas del camino crítico",
         )
         p.end()
 
@@ -726,7 +726,7 @@ class BarList(QWidget):
             p.drawText(
                 QRectF(lw + max(w, 2) + 8.0, y, value_w + bar_w - w, self.ROW - 4),
                 Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-                f"{thousands(b.value)}  ·  {100 * b.value / total:.1f} %",
+                f"{thousands(b.value)}  ({100 * b.value / total:.1f} %)",
             )
         p.end()
 

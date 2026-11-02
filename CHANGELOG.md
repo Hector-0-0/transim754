@@ -6,6 +6,11 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 ## [Sin publicar]
 
 ### Agregado
+- **Modo exposición** de la GUI (ADR-0019), el de `transim gui`: siempre oscuro, sin
+  menús, sin atajos con Ctrl, Alt o teclas F, sin la pestaña Programa, sin el historial
+  y sin el panel de detalle de Transistores. Nada se elimina: `transim gui --completo`
+  muestra todo. En Recorrido, un clic en las entradas vuelve al primer paso y uno en el
+  resultado muestra todos.
 - Recorrido explicado de la **multiplicación** (desempaquetar, producto de mantisas en el
   arreglo, contar ceros, normalizar con el exponente ea + eb − sesgo + 1 − lz, redondear y
   casos especiales) y de la **división** (normalizar operandos, cociente del divisor no
@@ -63,6 +68,13 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   MOSFET, la lógica CMOS y el estándar IEEE 754.
 
 ### Cambiado
+- Texto de la interfaz más corto y natural: ningún texto visible separa datos con « · »
+  (comas y paréntesis en su lugar), las unidades se nombran como operación («Suma y
+  resta en binary32»), las leyendas muestran solo los colores y se quitan las líneas de
+  ayuda largas. Una prueba recorre las pestañas y falla si aparece « · ».
+- Diapositivas y guion de la exposición con las capturas del modo exposición, en
+  oscuro; los pasos en vivo se hacen con el ratón. Se quita la diapositiva del corte del
+  transistor.
 - Diapositivas con capturas de las vistas nuevas: Recorrido, plano del chip, rejilla del
   acarreo, compuertas de XOR2 y FA, esquema de NAND2 con sus redes y la celda junto a su
   silicio; se quitan las del silicio en filas.
@@ -91,6 +103,10 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   para organizar el trabajo en equipo.
 
 ### Corregido
+- Recorrido: el diagrama redibujaba la escena mientras la vista todavía procesaba el
+  clic, y repintaba por partes. Ahora el clic termina antes de redibujar, la vista se
+  repinta entera y las cajas de entradas y resultado se pintan sin depender del estado
+  del pintor.
 - Las tablas del motor `cached` se comparten entre hilos y cada una resolvía sus fallos
   de memo con un solo simulador interno sin candado: si la pestaña Operación y la CPU
   calculaban a la vez, un hilo podía pisar el estado del otro y dejar en el memo un

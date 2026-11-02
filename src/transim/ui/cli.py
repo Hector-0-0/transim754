@@ -244,11 +244,23 @@ def metrics(
 
 
 @app.command()
-def gui() -> None:
-    """Abre la interfaz gráfica (requiere ``make install-gui``)."""
+def gui(
+    completo: Annotated[
+        bool,
+        typer.Option(
+            "--completo",
+            help="Muestra todo: menús, atajos de teclado, pestaña Programa e historial.",
+        ),
+    ] = False,
+) -> None:
+    """Abre la interfaz gráfica (requiere ``make install-gui``).
+
+    Por defecto abre en modo exposición: oscuro y sin lo que no hace falta para mostrar
+    la FPU (ADR-0019).
+    """
     from transim.ui.gui.app import main as gui_main
 
-    raise typer.Exit(gui_main())
+    raise typer.Exit(gui_main(full=completo))
 
 
 if __name__ == "__main__":
