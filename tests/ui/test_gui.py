@@ -645,7 +645,8 @@ def test_recorrido_conserva_el_paso_al_recalcular(ventana: object, qapp: object)
     op.op.set_value("mul")
     calcular(qapp, ventana)
     assert rec.index == 0  # otra unidad: vuelve al inicio
-    assert "bloques en orden de flujo" in rec.subtitle.text()
+    assert "FMUL" in rec.subtitle.text()
+    assert "explicado paso a paso" in rec.subtitle.text()
 
 
 # ---------------------------------------------------------------- compuertas

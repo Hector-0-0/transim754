@@ -4,6 +4,17 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-11-02 (cierre) · Recorrido de la multiplicación y la división
+
+**Hecho**
+- PR #55 (rejilla y propagación) integrado.
+- Recorrido explicado de FMUL (6 pasos) y FDIV (5 pasos) con los bits de la simulación:
+  producto del arreglo, exponente ea + eb − sesgo + 1 − lz, cociente no restaurador con
+  sticky y exponente ea − eb + sesgo − 1 + bit alto. Aviso de cero o subnormal en el
+  desempaquetado; los ejemplos de mul y div en binary32 y binary16 se narran sin X.
+
+---
+
 ## 2026-11-02 (noche) · Rejilla de bits y propagación del acarreo
 
 **Hecho**

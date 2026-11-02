@@ -555,8 +555,8 @@ class WalkthroughTab(QWidget):
         self.p_note.setText(
             ""
             if walk.narrated
-            else "En la multiplicación y la división se muestran las entradas y salidas de "
-            "cada bloque; la explicación con las cuentas está hecha para la suma y la resta."
+            else "Esta operación muestra las entradas y salidas de cada bloque, sin la "
+            "explicación con las cuentas."
         )
         self.diagram.show_walk(walk, self.index)
         self._fill()

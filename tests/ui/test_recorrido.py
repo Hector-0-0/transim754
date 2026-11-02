@@ -118,13 +118,63 @@ def test_enlaces_entre_pasos_siguen_el_datapath() -> None:
     assert w.steps[k["unpack_a"]].sources == ()
 
 
-@pytest.mark.parametrize("op", ["mul", "div"])
-def test_multiplicacion_y_division_muestran_sus_bloques(op: str) -> None:
-    w = recorrido(BINARY32, op, "1.5", "2")
-    assert not w.narrated
-    netlist = model.unit_for(BINARY32, op, "cached").netlist
-    assert len(w.steps) == sum(1 for i in netlist.top_instances() if not i.is_leaf)
-    assert all("entra " in s.detail and "sale " in s.detail for s in w.steps)
+def test_multiplicacion_explicada() -> None:
+    w = recorrido(BINARY32, "mul", "1.5", "2.25")
+    assert w.narrated
+    assert [s.title for s in w.steps] == [
+        "Desempaquetar",
+        "Multiplicar mantisas",
+        "Contar ceros",
+        "Normalizar",
+        "Redondear y empaquetar",
+        "Casos especiales",
+    ]
+    assert "signo = 0 ⊕ 0 = 0" in paso(w, "unpack_a").detail
+    assert paso(w, "mant_mul").detail.splitlines()[-1] == "  = 01.1011₂"
+    assert paso(w, "lzc").summary == "lz = 1"
+    assert "127 + 128 − 127 + 1 − 1 = 128" in paso(w, "normalize").detail
+    assert "0x40580000" in paso(w, "special").detail
+
+
+def test_division_explicada() -> None:
+    w = recorrido(BINARY32, "div", "1", "3")
+    assert w.narrated
+    assert [s.title for s in w.steps] == [
+        "Desempaquetar",
+        "Normalizar operandos",
+        "Dividir mantisas",
+        "Redondear y empaquetar",
+        "Casos especiales",
+    ]
+    cociente = paso(w, "mant_div").detail
+    assert "0.10101010" in cociente
+    assert "sticky = 1" in cociente
+    assert "127 − 128 + 127 − 1 + 0 = 125" in cociente
+    assert paso(w, "round").summary == "redondea ↑"
+    assert "0x3EAAAAAB" in paso(w, "special").detail
+
+
+def test_division_por_cero_y_subnormal() -> None:
+    w = recorrido(BINARY32, "div", "1", "0")
+    assert "cero o subnormal" in paso(w, "unpack_a").detail
+    assert "se descarta" in paso(w, "mant_div").text
+    assert "flags: DZ" in paso(w, "special").detail
+    m = recorrido(BINARY32, "mul", "1e-40", "2")
+    assert int(paso(m, "lzc").summary.split("= ")[1]) > 1  # subnormal: más ceros
+
+
+@pytest.mark.parametrize("fmt", [BINARY32, BINARY16])
+def test_ejemplos_de_mul_y_div_sin_valores_indefinidos(fmt: FloatFormat) -> None:
+    for ej in model.EXAMPLES:
+        if ej.op not in ("mul", "div"):
+            continue
+        a, b = ej.operands(fmt)
+        w = recorrido(fmt, ej.op, a, b)
+        assert w.narrated
+        assert all(s.summary != "X" for s in w.steps), ej.title
+        netlist = model.unit_for(fmt, ej.op, "cached").netlist
+        bloques = {i.path for i in netlist.top_instances() if not i.is_leaf}
+        assert {p for s in w.steps for p in s.paths} == bloques
 
 
 def test_los_valores_se_copian_al_construir() -> None:

@@ -92,8 +92,10 @@ Transistores), buses internos e historial (doble clic para repetir).</li>
 <h3>Pestaña Recorrido: la operación paso a paso</h3>
 <ul>
 <li>Muestra la última operación como etapas conectadas, desde las entradas hasta el
-resultado: desempaquetar, comparar, restar exponentes, alinear, sumar, contar ceros,
-normalizar, redondear y casos especiales.</li>
+resultado. En la suma y la resta: desempaquetar, comparar, restar exponentes, alinear,
+sumar, contar ceros, normalizar, redondear y casos especiales; en la multiplicación, el
+producto de mantisas en un arreglo de AND y sumadores; en la división, la normalización
+de los operandos y el cociente de un divisor no restaurador.</li>
 <li><b>Siguiente</b> (→) avanza un paso y <b>Reproducir</b> (Espacio) avanza solo. El
 panel <b>Qué está pasando</b> explica el paso con la cuenta hecha con los bits de la
 simulación.</li>
