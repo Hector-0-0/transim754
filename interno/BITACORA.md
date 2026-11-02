@@ -4,6 +4,28 @@ Estado vivo. Entrada nueva arriba. Cada entrada: qué se hizo, decisiones, pendi
 
 ---
 
+## 2026-11-02 (tarde) · Plano del chip y celda junto a su silicio
+
+**Hecho**
+- PR #53 (compuertas) integrado a `main`.
+- Silicio del chip y de los bloques como plano (ADR-0017): un rectángulo por región de
+  área proporcional a sus transistores, color de su etapa, celdas sueltas agrupadas por
+  tipo (más de 24). Clic: datos en «Qué está pasando»; doble clic: entra; el mapa de
+  actividad tiñe las regiones.
+- Una celda en Silicio se dibuja junto a su esquema, con el transistor bajo el ratón
+  resaltado en los dos. Puertos con su nombre encima de la celda.
+- Se quitan las filas a rayas y el código que las armaba.
+
+**Decisiones**
+- El metal 2 sigue visible por defecto: sin él no se ven las conexiones de la celda; se
+  oculta con su casilla.
+
+**Siguiente**
+- Rejilla de bits para los bloques y animación del acarreo (requiere un ADR propio:
+  modo de retardo unitario por celda, distinto del motor).
+
+---
+
 ## 2026-11-02 · Vista de compuertas y esquema más limpio
 
 **Hecho**

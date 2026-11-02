@@ -6,6 +6,12 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 ## [Sin publicar]
 
 ### Agregado
+- **Plano del chip** (ADR-0017): en Silicio, la unidad y cada bloque se ven como regiones
+  de área proporcional a sus transistores, con el nombre y el color de su etapa; las
+  celdas sueltas de un bloque se agrupan por tipo. Clic muestra sus datos, doble clic
+  entra y el mapa de actividad tiñe cada región (`gui/floorplan.py`).
+- Una celda en Silicio se ve **junto a su esquema**: un transistor bajo el ratón se
+  resalta en los dos dibujos; los nombres de los puertos van encima de la celda.
 - Vista **Compuertas** de cada celda (ADR-0016): cada etapa CMOS se dibuja como la
   compuerta que implementa (inversor, NAND, NOR, AOI/OAI o compuerta compleja, y
   transmission gates), deducida de sus transistores y verificada contra la simulación en
@@ -44,6 +50,8 @@ el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
   MOSFET, la lógica CMOS y el estándar IEEE 754.
 
 ### Cambiado
+- El chip y los bloques ya no se dibujan como filas de celdas estándar (reemplazado por el
+  plano de ADR-0017).
 - Esquema de transistores más limpio: fondo de la red pull-up y de la pull-down con su
   nombre, cables en 1 más gruesos, nombres de transistores solo al pasar el ratón y sin
   recuadros verdes salvo que se pidan.

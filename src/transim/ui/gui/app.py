@@ -121,9 +121,11 @@ lleva la salida a 1 y la pull-down de nMOS (fondo azulado) a 0. Canal continuo:
 conduce; cortado: no conduce. <b>Paso a paso</b> recorre las etapas en orden.</li>
 <li><b>Ver ▾</b>: camino activo, conmutaciones, mapa de actividad, color por valor y
 exportar la imagen.</li>
-<li><b>Silicio</b> dibuja cómo se vería en el chip: difusión p+ (ocre) dentro del pozo
-n, difusión n+ (verde), polisilicio (rojo), metal 1 (azul) y metal 2 (violeta). El canal
-de un transistor que conduce se ilumina en verde.</li>
+<li><b>Silicio</b>: el chip y cada bloque se ven como un plano, con un rectángulo por
+bloque de área proporcional a sus transistores (doble clic para entrar). Una celda se ve
+junto a su esquema: difusión p+ (ocre) dentro del pozo n, difusión n+ (verde),
+polisilicio (violeta), metal 1 (gris) y metal 2 (turquesa); al pasar el ratón por un
+transistor se resalta en los dos dibujos. El canal que conduce se ilumina en verde.</li>
 <li>A la derecha, <b>Qué está pasando</b> muestra el corte transversal del transistor
 bajo el ratón: la capa de inversión aparece cuando conduce.</li>
 </ul>

@@ -57,6 +57,7 @@ from transim.ui.gui.canvas import (
     LAYER_COLOR,
     LAYER_NAMES,
     TOGGLE_LAYERS,
+    BlockHit,
     CanvasView,
     CellItem,
     CircuitScene,
@@ -67,11 +68,14 @@ from transim.ui.gui.canvas import (
 )
 from transim.ui.gui.circuit import Binding, active_path, bind_cell, bind_instance
 from transim.ui.gui.cross_section import CrossSection, Device, explain
+from transim.ui.gui.floorplan import Tile
 from transim.ui.gui.model import Calculation, instance_toggles
 from transim.ui.gui.steps import Step, cell_steps, input_ids
-from transim.ui.gui.widgets import Segmented, card, hint, thousands
+from transim.ui.gui.widgets import Segmented, card, hint, stage_color, thousands
 
 BLOCK_LIMIT = 2500
+GROUP_CELLS = 24
+"""Con más celdas sueltas que esto, el plano de un bloque las agrupa por tipo."""
 """Transistores máximos de un bloque para dibujar su esquema completo."""
 
 DESCRIPTIONS = {
@@ -606,6 +610,9 @@ class TransistorTab(QWidget):
         self.inspector = Inspector()
         self.inspector.open_cell.connect(self._open_inspected)
         self._inspected: Hit | None = None
+        self._block_inspected: str | None = None
+        self._tile_members: dict[str, list[Instance]] = {}
+        """Celdas de cada región agrupada del plano (por la clave de la región)."""
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.sources)
@@ -727,8 +734,9 @@ class TransistorTab(QWidget):
         self.paths.setEnabled(self.mode.value() == "schematic")
         self.toggles.setEnabled(op and not self.silicon)
         self.heat.setEnabled(op)
-        self.by_value.setEnabled(self.silicon)
-        self.layer_row.setVisible(self.silicon)
+        cell_silicon = self.silicon and not self.scene.blocks
+        self.by_value.setEnabled(cell_silicon)
+        self.layer_row.setVisible(cell_silicon)
 
     def _steps_refresh(self) -> None:
         """Prepara los pasos de la celda dibujada (solo si es un esquema de una celda)."""
@@ -802,8 +810,14 @@ class TransistorTab(QWidget):
     def _apply_heat(self) -> None:
         if not (self.heat.isChecked() and self.heat.isEnabled() and self.unit is not None):
             self.scene.set_heat(None)
+            self.scene.set_block_heat(None)
             return
         engine = self.unit.engine
+        if self.scene.blocks:
+            per = {b: self._tile_toggles(b.tile.key) for b in self.scene.blocks}
+            top_b = max(per.values(), default=0) or 1
+            self.scene.set_block_heat(lambda b: math.sqrt(per[b] / top_b))
+            return
         toggles = engine.node_toggles
 
         def driven(item: CellItem) -> int:
@@ -819,8 +833,64 @@ class TransistorTab(QWidget):
         top = max(counts.values(), default=0) or 1
         self.scene.set_heat(lambda item: math.sqrt(counts[item] / top))
 
+    def _tile_toggles(self, key: str) -> int:
+        """Conmutaciones de una región del plano: un bloque o un grupo de celdas."""
+        if self.unit is None:
+            return 0
+        engine = self.unit.engine
+        members = self._tile_members.get(key)
+        if members is not None:
+            return sum(instance_toggles(engine, c) for c in members)
+        return instance_toggles(engine, self._instances[key])
+
+    def _tiles(self, children: list[Instance], top_level: bool) -> tuple[list[Tile], list[str]]:
+        """Regiones del plano para ``children`` y su subtítulo.
+
+        Los sub-bloques son una región cada uno. Las celdas sueltas también, salvo que sean
+        muchas: entonces se agrupan por tipo («OR2 × 120») y el doble clic abre la primera.
+        """
+        tiles: list[Tile] = []
+        subs: list[str] = []
+        leaves = [c for c in children if c.is_leaf]
+        group = len(leaves) > GROUP_CELLS
+        for inst in children:
+            if group and inst.is_leaf:
+                continue
+            name = inst.path.rsplit(".", 1)[-1]
+            if top_level and name in STAGE_NAMES:
+                title = f"{STAGE_NAMES[name][:1].upper()}{STAGE_NAMES[name][1:]}"
+                color = stage_color(name).name()
+            else:
+                title = f"{name} · {inst.definition.name}"
+                color = stage_color(inst.definition.name).name()
+            tiles.append(Tile(inst.path, title, len(inst.transistors), color))
+            subs.append(
+                f"{thousands(len(inst.transistors))} transistores · "
+                f"{thousands(self._tile_toggles(inst.path))} conm."
+            )
+        if group:
+            kinds: dict[str, list[Instance]] = {}
+            for c in leaves:
+                kinds.setdefault(c.definition.name, []).append(c)
+            for kind, cells in sorted(kinds.items(), key=lambda kv: -len(kv[1])):
+                key = cells[0].path
+                self._tile_members[key] = cells
+                n = sum(len(c.transistors) for c in cells)
+                tiles.append(Tile(key, f"{kind} × {len(cells)}", n, stage_color(kind).name()))
+                subs.append(
+                    f"{thousands(n)} transistores · {thousands(self._tile_toggles(key))} conm."
+                )
+        return tiles, subs
+
     def _legend(self) -> None:
         t = th.current()
+        if self.silicon and self.scene.blocks:
+            self.legend.setText(
+                "Plano ilustrativo: el área de cada bloque es proporcional a sus transistores y "
+                "su color es el de su etapa (el mismo de Ciclos de reloj y Recorrido). Doble "
+                "clic en un bloque para entrar; en una celda se ven su esquema y su silicio."
+            )
+            return
         if self.silicon:
             parts = [
                 f"<span style='color:{LAYER_COLOR[k]}; font-size:14px'>■</span> {LAYER_NAMES[k]}"
@@ -864,14 +934,19 @@ class TransistorTab(QWidget):
         values: object,
         clickable: set[int],
         fit: bool,
-        die: tuple[str, str] | None = None,
-        groups: list[tuple[str, list[tuple[Binding, str]]]] | None = None,
+        floor: tuple[list[Tile], list[str], tuple[str, str]] | None = None,
     ) -> None:
+        """Dibuja ``cells`` en el modo actual. En Silicio: el plano ``floor`` si se da; una
+        sola celda, junto a su esquema; unas pocas celdas, en una fila."""
         keep_view = not fit
         center = self.view.mapToScene(self.view.viewport().rect().center())
         zoom = self.view.zoom
-        if self.silicon:
-            self.scene.show_silicon(groups or [("", cells)], values, clickable=clickable, die=die)  # type: ignore[arg-type]
+        if self.silicon and floor is not None:
+            self.scene.show_floorplan(floor[0], floor[1], values, floor[2])  # type: ignore[arg-type]
+        elif self.silicon and len(cells) == 1:
+            self.scene.show_pair(cells[0][0], cells[0][1], values, clickable=clickable)  # type: ignore[arg-type]
+        elif self.silicon:
+            self.scene.show_silicon(cells, values, clickable=clickable)  # type: ignore[arg-type]
         elif self.gates:
             self.scene.show_gates(cells, values, clickable=clickable)  # type: ignore[arg-type]
         else:
@@ -1174,6 +1249,7 @@ class TransistorTab(QWidget):
     def _draw_target(self, fit: bool) -> None:
         if self.unit is None:
             return
+        self._tile_members = {}
         kind, path = self._target
         netlist = self.unit.netlist
         engine = self.unit.engine
@@ -1183,30 +1259,29 @@ class TransistorTab(QWidget):
                 False,
                 "La unidad completa tiene demasiados transistores para un esquema: elija un bloque",
             )
-            groups: list[tuple[str, list[tuple[Binding, str]]]] = []
-            for top in netlist.top_instances():
-                if top.is_leaf:
-                    continue
-                cells = [c for c in netlist.leaf_instances() if c.path.startswith(f"{top.path}.")]
-                label = f"{top.path} · {STAGE_NAMES.get(top.path, top.definition.name)}"
-                groups.append((label, [(bind_instance(c), c.path) for c in cells]))
+            blocks = [c for c in netlist.top_instances() if not c.is_leaf]
+            tiles, subs = self._tiles(blocks, top_level=True)
             glue = [c for c in netlist.top_instances() if c.is_leaf]
             if glue:
-                groups.append((STAGE_NAMES[GLUE], [(bind_instance(c), c.path) for c in glue]))
-            cells_all = [c for _, cs in groups for c in cs]
+                self._tile_members["glue"] = glue
+                n_glue = sum(len(c.transistors) for c in glue)
+                tiles.append(Tile("glue", "Selección y enlace", n_glue, stage_color(GLUE).name()))
+                subs.append(
+                    f"{len(glue)} celdas · {thousands(n_glue)} transistores · "
+                    f"{thousands(self._tile_toggles('glue'))} conm."
+                )
             self._draw(
-                cells_all,
+                [],
                 engine,
                 set(),
                 fit,
-                die=(netlist.name, f"{thousands(n_total)} transistores"),
-                groups=groups,
+                floor=(tiles, subs, (netlist.name, f"{thousands(n_total)} transistores")),
             )
             self.breadcrumb.setText(f"<b>{netlist.name}</b> — el chip completo")
             self.info.setText(
-                f"{netlist.name}: {thousands(n_total)} transistores en {len(cells_all)} celdas "
-                "estándar, agrupadas por bloque. Acérquese con la rueda hasta ver cada "
-                "transistor; doble clic en una celda para abrir su bloque."
+                f"{netlist.name}: {thousands(n_total)} transistores en {len(tiles)} regiones. "
+                "Cada bloque ocupa un área proporcional a sus transistores; doble clic en uno "
+                "para entrar."
             )
             return
         if kind == "glue":
@@ -1231,12 +1306,21 @@ class TransistorTab(QWidget):
             f"Más de {thousands(BLOCK_LIMIT)} transistores: véalo en Silicio o abra una parte",
         )
         bindings = [(bind_instance(c), c.path[len(base) :] if base else c.path) for c in cells]
-        self._draw(bindings, engine, set(), fit)
+        floor = None
+        if len(cells) > 1:
+            children = (
+                [c for c in netlist.top_instances() if c.is_leaf]
+                if kind == "glue"
+                else self._children.get(path, [])
+            )
+            tiles, subs = self._tiles(children, top_level=False)
+            floor = (tiles, subs, (title, f"{thousands(n)} transistores"))
+        self._draw(bindings, engine, set(), fit, floor=floor)
         on = sum(1 for c in cells for t in c.transistors if engine.conduction(t) is Conduction.ON)
         toggles = sum(instance_toggles(engine, c) for c in cells)
         self.breadcrumb.setText(self._crumbs(kind, path))
         note = (
-            f" Su esquema tendría {thousands(n)} transistores: se muestra el silicio."
+            f" Su esquema tendría {thousands(n)} transistores: se muestra su plano."
             if forced
             else ""
         )
@@ -1285,9 +1369,18 @@ class TransistorTab(QWidget):
             self.reveal("unit")
 
     # ------------------------------------------------------------------ ratón
-    def _clicked(self, hit: Hit | None) -> None:
+    def _many(self) -> bool:
+        """True si se dibujan varias celdas distintas (no una celda con su silicio)."""
+        return len(self.scene.cells) > 1 and not self.scene.pair
+
+    def _clicked(self, hit: Hit | BlockHit | None) -> None:
         if hit is None:
             self._clear_selection()
+            self.scene.select_block(None)
+            return
+        if isinstance(hit, BlockHit):
+            self.scene.select_block(hit.item)
+            self._inspect_block(hit)
             return
         if hit.kind == "input" and self._target[0] == "library":
             port = self._port_of(hit.node)
@@ -1310,7 +1403,7 @@ class TransistorTab(QWidget):
             self.scene.select(hit.item, gate.transistors[0])
             self._inspect(hit)
             return
-        if hit.kind == "cell" and len(self.scene.cells) > 1:
+        if hit.kind == "cell" and self._many():
             self.scene.select(hit.item, None)
             self._inspect(hit)
 
@@ -1320,9 +1413,12 @@ class TransistorTab(QWidget):
                 return port
         return None
 
-    def _double_clicked(self, hit: Hit | None) -> None:
+    def _double_clicked(self, hit: Hit | BlockHit | None) -> None:
         if hit is None:
             self.view.fit()
+            return
+        if isinstance(hit, BlockHit):
+            self.reveal(hit.key)
             return
         if hit.kind == "transistor" and hit.transistor is not None:
             rect = hit.item.mapRectToScene(hit.item.transistor_rect(hit.transistor))
@@ -1331,7 +1427,7 @@ class TransistorTab(QWidget):
         if hit.kind == "gate" and hit.element is not None and len(self.scene.cells) == 1:
             self.show_gate_transistors(hit.element)
             return
-        if len(self.scene.cells) > 1 and self._target[0] != "library":
+        if self._many() and self._target[0] != "library":
             self._open(hit.item)
 
     def show_gate_transistors(self, element: int) -> None:
@@ -1360,6 +1456,8 @@ class TransistorTab(QWidget):
     def _open_inspected(self) -> None:
         if self._inspected is not None:
             self._open(self._inspected.item)
+        elif self._block_inspected is not None:
+            self.reveal(self._block_inspected)
 
     def _clear_selection(self) -> None:
         self.scene.select(None, None)
@@ -1376,12 +1474,16 @@ class TransistorTab(QWidget):
         fit = QAction("Ajustar a la vista", menu)
         fit.triggered.connect(lambda: self.view.fit())
         menu.addAction(fit)
-        if hit is not None and len(self.scene.cells) > 1 and self._target[0] != "library":
-            name = hit.item.binding.path
-            action = QAction(f"Abrir {name}", menu)
-            action.triggered.connect(lambda: self._open(hit.item))
+        if isinstance(hit, BlockHit):
+            action = QAction(f"Abrir {hit.item.tile.title}", menu)
+            action.triggered.connect(lambda: self.reveal(hit.key))
             menu.addAction(action)
-        if hit is not None and hit.kind == "transistor" and hit.transistor is not None:
+        elif hit is not None and self._many() and self._target[0] != "library":
+            cell = hit.item
+            action = QAction(f"Abrir {cell.binding.path}", menu)
+            action.triggered.connect(lambda: self._open(cell))
+            menu.addAction(action)
+        if isinstance(hit, Hit) and hit.kind == "transistor" and hit.transistor is not None:
             zoom = QAction("Acercarse a este transistor", menu)
             zoom.triggered.connect(lambda: self._double_clicked(hit))
             menu.addAction(zoom)
@@ -1409,8 +1511,17 @@ class TransistorTab(QWidget):
         return menu
 
     # -------------------------------------------------------------- inspector
-    def _hover(self, hit: Hit | None) -> None:
-        if hit is None or (hit.kind == "cell" and len(self.scene.cells) <= 1):
+    def _hover(self, hit: Hit | BlockHit | None) -> None:
+        if isinstance(hit, BlockHit):
+            self._inspect_block(hit)
+            return
+        if hit is None and self.scene.blocks:
+            if self.scene.selected_block is not None:
+                self._inspect_block(BlockHit(self.scene.selected_block))
+            else:
+                self._clear_inspector()
+            return
+        if hit is None or (hit.kind == "cell" and not self._many()):
             selected = self.scene.selected_item
             if selected is not None:
                 self._inspect(
@@ -1427,6 +1538,7 @@ class TransistorTab(QWidget):
 
     def _clear_inspector(self) -> None:
         self._inspected = None
+        self._block_inspected = None
         ins = self.inspector
         ins.section.show_device(None)
         ins.open_button.hide()
@@ -1445,12 +1557,54 @@ class TransistorTab(QWidget):
                 "ratón por una compuerta o un transistor para ver el detalle."
             )
             return
+        if self.scene.blocks:
+            ins.title.setText("<b>Plano</b>")
+            ins.body.setText(
+                "Pase el ratón por un bloque para ver qué hace, cuántos transistores tiene y "
+                "cuánto conmutó. Doble clic para entrar."
+            )
+            ins.explain.setText("")
+            return
+        if self.scene.pair:
+            ins.title.setText("<b>La celda y su silicio</b>")
+            ins.body.setText(
+                "A la izquierda, el esquema; a la derecha, la misma celda en silicio. Pase el "
+                "ratón por un transistor en cualquiera de los dos: se resalta en ambos."
+            )
+            ins.explain.setText("")
+            return
         ins.title.setText("<b>Nada elegido</b>")
         ins.body.setText(
             "Pase el ratón por un transistor, un cable o una celda. Un clic fija el "
             "transistor; Esc lo suelta."
         )
         ins.explain.setText("")
+
+    def _inspect_block(self, hit: BlockHit) -> None:
+        """Lo que se sabe de un bloque del plano."""
+        ins = self.inspector
+        ins.section.show_device(None)
+        tile = hit.item.tile
+        members = self._tile_members.get(tile.key)
+        if tile.key == "glue":
+            what = "Multiplexores y compuertas que unen las etapas."
+        elif members is not None:
+            what = f"{len(members)} celdas {members[0].definition.name}; la primera es {tile.key}."
+        else:
+            what = f"Instancia {tile.key} ({self._instances[tile.key].definition.name})."
+        total = len(self.unit.netlist.transistors) if self.unit is not None else 0
+        share = 100 * tile.weight / total if total else 0.0
+        ins.title.setText(f"<b>{tile.title}</b>")
+        ins.body.setText(
+            f"{what}<br>{thousands(tile.weight)} transistores ({share:.1f} % de la unidad) · "
+            f"{thousands(self._tile_toggles(tile.key))} conmutaciones en la última operación."
+        )
+        ins.explain.setText("Doble clic para entrar.")
+        ins.open_button.setVisible(True)
+        ins.open_button.setText(f"Abrir {tile.title}")
+        self._inspected = None
+        self._block_inspected = tile.key
+        self.status.emit(f"{tile.title}: {thousands(tile.weight)} transistores")
 
     def _inspect(self, hit: Hit) -> None:
         values = self.scene.values
@@ -1461,7 +1615,7 @@ class TransistorTab(QWidget):
         b = hit.binding
         c = b.circuit
         t = th.current()
-        ins.open_button.setVisible(len(self.scene.cells) > 1 and self._target[0] != "library")
+        ins.open_button.setVisible(self._many() and self._target[0] != "library")
         ins.open_button.setText(
             "Abrir su bloque" if self._target[0] == "unit" else f"Abrir {b.path or c.name}"
         )
